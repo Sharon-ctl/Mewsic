@@ -671,11 +671,56 @@ async fn get_ffmpeg_path(app_handle: &tauri::AppHandle) -> PathBuf {
     app_dir.join(bin_name)
 }
 
+async fn download_file_with_progress(
+    app_handle: &tauri::AppHandle,
+    url: &str,
+    path: &Path,
+    event_name: &str,
+) -> Result<(), String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(url)
+        .header(reqwest::header::USER_AGENT, "Mozilla/5.0")
+        .send()
+        .await
+        .map_err(|e| format!("Download failed: {}", e))?;
+
+    let total_size = response.content_length().unwrap_or(0);
+
+    let mut file = fs::File::create(path).map_err(|e| format!("Failed to create file: {}", e))?;
+    let mut downloaded: u64 = 0;
+    let mut stream = response.bytes_stream();
+
+    let mut last_emit = 0.0;
+
+    while let Some(item) = stream.next().await {
+        let chunk = item.map_err(|e| format!("Error while downloading: {}", e))?;
+        file.write_all(&chunk).map_err(|e| format!("Error while writing to file: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        if total_size > 0 {
+            let progress = (downloaded as f64 / total_size as f64) * 100.0;
+            // Only emit if progress changed by at least 1% to avoid spamming
+            if progress - last_emit >= 1.0 || progress >= 100.0 {
+                app_handle
+                    .emit(event_name, progress)
+                    .map_err(|e| e.to_string())?;
+                last_emit = progress;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 async fn ensure_dependencies(app_handle: tauri::AppHandle) -> Result<String, String> {
     let yt_dlp_path = get_yt_dlp_path(&app_handle).await;
     let ffmpeg_path = get_ffmpeg_path(&app_handle).await;
-    
+
     // Create app data dir if it doesn't exist
     let app_dir = yt_dlp_path.parent().unwrap();
     fs::create_dir_all(app_dir).map_err(|e| format!("Failed to create app directory: {}", e))?;
@@ -689,11 +734,8 @@ async fn ensure_dependencies(app_handle: tauri::AppHandle) -> Result<String, Str
         } else {
             "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp"
         };
-        
-        let client = reqwest::Client::new();
-        let response = client.get(url).send().await.map_err(|e| format!("yt-dlp download failed: {}", e))?;
-        let bytes = response.bytes().await.map_err(|e| format!("Failed to read yt-dlp: {}", e))?;
-        fs::write(&yt_dlp_path, bytes).map_err(|e| format!("Failed to write yt-dlp: {}", e))?;
+
+        download_file_with_progress(&app_handle, url, &yt_dlp_path, "harbour-download-progress-ytdlp").await?;
 
         #[cfg(unix)]
         {
@@ -714,10 +756,7 @@ async fn ensure_dependencies(app_handle: tauri::AppHandle) -> Result<String, Str
             "https://github.com/eugeneware/ffmpeg-static/releases/latest/download/ffmpeg-linux-x64"
         };
 
-        let client = reqwest::Client::new();
-        let response = client.get(url).send().await.map_err(|e| format!("ffmpeg download failed: {}", e))?;
-        let bytes = response.bytes().await.map_err(|e| format!("Failed to read ffmpeg: {}", e))?;
-        fs::write(&ffmpeg_path, bytes).map_err(|e| format!("Failed to write ffmpeg: {}", e))?;
+        download_file_with_progress(&app_handle, url, &ffmpeg_path, "harbour-download-progress-ffmpeg").await?;
 
         #[cfg(unix)]
         {
@@ -1637,10 +1676,12 @@ fn main() {
     start_asset_server(1422);
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_localhost::Builder::new(1421).build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();

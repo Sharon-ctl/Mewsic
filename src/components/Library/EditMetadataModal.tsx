@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import { useStore } from "../../store";
+import { useShallow } from "zustand/react/shallow";
 import { saveTrackMetadata, getCoverArt, fetchTrackMetadata } from "../../utils/tauriApi";
 import type { Track } from "../../types";
 
@@ -13,7 +14,7 @@ interface EditMetadataModalProps {
 }
 
 export function EditMetadataModal({ track, onClose }: EditMetadataModalProps) {
-  const { updateTrack } = useStore();
+  const { updateTrack } = useStore(useShallow((s) => ({ updateTrack: s.updateTrack })));
   const [title, setTitle] = useState(track.title);
   const [artist, setArtist] = useState(track.artist);
   const [album, setAlbum] = useState(track.album);

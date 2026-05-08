@@ -142,6 +142,16 @@ export function PlaylistView() {
     }
   };
 
+  const handleAddToPlaylist = useCallback((t: Track) => {
+    setAddTrack(t);
+  }, [setAddTrack]);
+
+  const handleRemoveFromPlaylist = useCallback(async (t: Track) => {
+    if (confirm(`Remove "${t.title}" from this playlist?`)) {
+      await removeTrackFromPlaylist(playlist, t.id);
+    }
+  }, [playlist, removeTrackFromPlaylist]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -263,12 +273,8 @@ export function PlaylistView() {
                     trackIndex={i}
                     sourceId={playlist.id}
                     viewMode="list"
-                    onAddToPlaylist={(t) => setAddTrack(t)}
-                    onRemoveFromPlaylist={async (t) => {
-                      if (confirm(`Remove "${t.title}" from this playlist?`)) {
-                        await removeTrackFromPlaylist(playlist, t.id);
-                      }
-                    }}
+                    onAddToPlaylist={handleAddToPlaylist}
+                    onRemoveFromPlaylist={handleRemoveFromPlaylist}
                   />
                 ))}
               </div>

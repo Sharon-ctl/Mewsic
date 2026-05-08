@@ -65,7 +65,7 @@ export function AboutModal() {
             Mew<span className="text-accent">sic</span>
           </h3>
           <p className="text-xs font-bold text-accent uppercase tracking-[0.2em] mb-6 opacity-80">
-            Version {appVersion} (nice)
+            Version {appVersion} Beta
           </p>
 
           <div className="space-y-4 text-text-secondary leading-relaxed text-sm">
@@ -102,7 +102,7 @@ export function AboutModal() {
               Build {getBuildId()} • Linux
             </p>
             <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              9,500 Lines of code!
+              11,014 Lines of code!
             </p>
           </div>
         </div>

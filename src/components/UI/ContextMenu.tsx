@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toggleFullscreen } from "../../utils/tauriApi";
 import { useStore } from "../../store";
+import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
 import type { Track } from "../../types";
 
@@ -71,7 +72,14 @@ export function ContextMenu() {
     isPlaying, setIsPlaying, playNext, playPrev, requestSeek, currentTrack, 
     setShowAbout, tracks, setAddTrack, setEditTrack, setDeleteTrack, 
     activePlaylistId, playlists, goBack, goForward, historyIndex, history
-  } = useStore();
+  } = useStore(useShallow((s) => ({
+    isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying, playNext: s.playNext,
+    playPrev: s.playPrev, requestSeek: s.requestSeek, currentTrack: s.currentTrack,
+    setShowAbout: s.setShowAbout, tracks: s.tracks, setAddTrack: s.setAddTrack,
+    setEditTrack: s.setEditTrack, setDeleteTrack: s.setDeleteTrack,
+    activePlaylistId: s.activePlaylistId, playlists: s.playlists,
+    goBack: s.goBack, goForward: s.goForward, historyIndex: s.historyIndex, history: s.history
+  })));
 
   const canGoBack = historyIndex > 0;
   const canGoForward = historyIndex < history.length - 1;

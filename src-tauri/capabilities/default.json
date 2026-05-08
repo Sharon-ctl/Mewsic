@@ -15,17 +15,21 @@
       "identifier": "fs:scope",
       "allow": [
         {
-          "path": "$HOME/**"
+          "path": "$APPDATA/**"
         },
         {
           "path": "$AUDIO/**"
         },
         {
           "path": "$MUSIC/**"
+        },
+        {
+          "path": "$DOWNLOAD/**"
         }
       ]
     },
     "shell:default",
-    "notification:default"
+    "notification:default",
+    "updater:default"
   ]
 }

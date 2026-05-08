@@ -103,6 +103,12 @@ interface UISlice {
   showCreatePlaylist: boolean;
   showCyberdeck: boolean;
   isDemoMode: boolean;
+  isDevMode: boolean;
+  reverbEnabled: boolean;
+  reverbStrength: number;
+  playbackSpeed: number;
+  bassBoost: number;
+  volumeBoost: number;
 
   setActiveView: (v: ViewId, skipHistory?: boolean) => void;
   setActivePlaylist: (id: string | null, skipHistory?: boolean) => void;
@@ -130,6 +136,13 @@ interface UISlice {
   setShowCreatePlaylist: (v: boolean) => void;
   setShowCyberdeck: (v: boolean) => void;
   setDemoMode: (v: boolean) => void;
+  setDevMode: (v: boolean) => void;
+  setReverbEnabled: (v: boolean) => void;
+  setReverbStrength: (v: number) => void;
+  setPlaybackSpeed: (v: number) => void;
+  setBassBoost: (v: number) => void;
+  setVolumeBoost: (v: number) => void;
+  resetAudioEffects: () => void;
   setShortcut: (action: keyof ShortcutMap, key: string, ctrl?: boolean, shift?: boolean, alt?: boolean) => void;
   resetShortcuts: () => void;
   goBack: () => void;
@@ -368,6 +381,12 @@ export const useStore = create<Store>()(
       showCreatePlaylist: false,
       showCyberdeck: false,
       isDemoMode: false,
+      isDevMode: false,
+      reverbEnabled: false,
+      reverbStrength: 0.5,
+      playbackSpeed: 1.0,
+      bassBoost: 0,
+      volumeBoost: 1.0,
 
       setActiveView: (v, skipHistory = false) => {
         const { history, historyIndex } = get();
@@ -474,6 +493,20 @@ export const useStore = create<Store>()(
       setShowCreatePlaylist: (v) => set({ showCreatePlaylist: v }),
       setShowCyberdeck: (v) => set({ showCyberdeck: v }),
       setDemoMode: (v) => set({ isDemoMode: v }),
+      setDevMode: (v) => set({ isDevMode: v }),
+      setReverbEnabled: (v) => set({ reverbEnabled: v }),
+      setReverbStrength: (v) => set({ reverbStrength: v }),
+      setPlaybackSpeed: (v) => set({ playbackSpeed: Math.max(0.5, Math.min(v, 2.0)) }),
+      setBassBoost: (v) => set({ bassBoost: v }),
+      setVolumeBoost: (v) => set({ volumeBoost: v }),
+      resetAudioEffects: () => set({ 
+        volume: 0.8,
+        reverbEnabled: false, 
+        reverbStrength: 0.5,
+        playbackSpeed: 1.0, 
+        bassBoost: 0, 
+        volumeBoost: 1.0 
+      }),
       goBack: () => {
         const { history, historyIndex, setActiveView, setActivePlaylist } = get();
         if (historyIndex > 0) {
@@ -543,6 +576,11 @@ export const useStore = create<Store>()(
         lowEndMode: s.lowEndMode,
         discordCoverCache: s.discordCoverCache,
         shortcuts: s.shortcuts,
+        reverbEnabled: s.reverbEnabled,
+        reverbStrength: s.reverbStrength,
+        playbackSpeed: s.playbackSpeed,
+        bassBoost: s.bassBoost,
+        volumeBoost: s.volumeBoost,
       }),
     }
   )

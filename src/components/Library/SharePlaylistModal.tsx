@@ -3,6 +3,7 @@ import { X, Copy, Check, Share2, Info, FolderOpen } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
 import type { Playlist, Track } from "../../types";
 import { useStore } from "../../store";
+import { useShallow } from "zustand/react/shallow";
 
 interface SharePlaylistModalProps {
   playlist: Playlist;
@@ -10,7 +11,7 @@ interface SharePlaylistModalProps {
 }
 
 export function SharePlaylistModal({ playlist, onClose }: SharePlaylistModalProps) {
-  const { tracks, playlistsDir } = useStore();
+  const { tracks, playlistsDir } = useStore(useShallow((s) => ({ tracks: s.tracks, playlistsDir: s.playlistsDir })));
   const [copied, setCopied] = useState(false);
 
   const jsonContent = useMemo(() => {

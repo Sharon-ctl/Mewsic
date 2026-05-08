@@ -7,6 +7,8 @@ import { getAppPaths, setTrayEnabled, toggleFullscreen } from "./utils/tauriApi"
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { PlayerBar } from "./components/Player/PlayerBar";
 import { HomeView } from "./components/Dashboard/HomeView";
@@ -14,6 +16,7 @@ import { LibraryView } from "./components/Library/LibraryView";
 import { PlaylistView } from "./components/Library/PlaylistView";
 import { PlayerView } from "./components/Player/PlayerView";
 import HarbourView from "./components/Harbour/HarbourView";
+import { AudioView } from "./components/Audio/AudioView";
 import { SettingsView } from "./components/Settings/SettingsView";
 import { ToastContainer } from "./components/UI/Toast";
 import { ContextMenu } from "./components/UI/ContextMenu";
@@ -27,7 +30,7 @@ import { deleteTrack } from "./utils/tauriApi";
 import { TitleBar } from "./components/UI/TitleBar";
 import { Cyberdeck } from "./components/UI/Cyberdeck";
 function ViewRouter() {
-  const { activeView } = useStore();
+  const { activeView } = useStore(useShallow((s) => ({ activeView: s.activeView })));
 
   switch (activeView) {
     case "home":     return <HomeView />;
@@ -35,6 +38,7 @@ function ViewRouter() {
     case "playlist": return <PlaylistView />;
     case "player":   return <PlayerView />;
     case "harbour":  return <HarbourView />;
+    case "audio":    return <AudioView />;
     case "settings": return <SettingsView />;
     default:         return <HomeView />;
   }
@@ -163,6 +167,33 @@ export default function App() {
       }
     }
     bootstrap();
+  }, []);
+
+  useEffect(() => {
+    async function checkForUpdates() {
+      try {
+        const update = await check();
+        if (update?.available) {
+          console.log(`Update available: ${update.version}`);
+          const notifId = addNotification(
+            `Mewsic v${update.version} is available.`,
+            "info",
+            0,
+            false,
+            "Update Available"
+          );
+          
+          // Optionally, we could add a way to trigger the update from hte notification
+          // but for now let's just log it and maybe add a button in settings.
+        }
+      } catch (e) {
+        console.error("Failed to check for updates:", e);
+      }
+    }
+    
+    // Check for updates after a short delay to not block startup
+    const timer = setTimeout(checkForUpdates, 5000);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {

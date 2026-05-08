@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback } from "react";
 
-// Throttle interval for time updates — reduces Zustand store writes from ~15/s to 2/s
-const TIME_UPDATE_INTERVAL = 500;
+// Throttle interval for time updates. Now that the app is optimized with useShallow, 
+// we can safely lower this to 200ms (5fps) for a much smoother progress bar without lag.
+const TIME_UPDATE_INTERVAL = 200;
 // Debounce for Discord RPC updates to prevent IPC clogging on rapid toggles/changes
 const RPC_DEBOUNCE_MS = 300;
 
@@ -9,8 +10,17 @@ import { useStore } from "../store";
 import { useShallow } from "zustand/react/shallow";
 import { readAudioFile, updateDiscordRpc, clearDiscordRpc, fetchTrackMetadata } from "../utils/tauriApi";
 
-const audio = new Audio();
-audio.preload = "auto";
+import { 
+  audio, 
+  initAudioContext, 
+  setReverbEnabled, 
+  setPlaybackSpeed, 
+  setBassBoost, 
+  setVolumeBoost,
+  setEngineVolume,
+  setReverbStrength,
+  setLowEndMode
+} from "../utils/audioEngine";
 
 export function useAudioPlayer() {
   const {
@@ -25,6 +35,12 @@ export function useAudioPlayer() {
     addNotification,
     discordEnabled,
     systemNotifications,
+    reverbEnabled,
+    reverbStrength,
+    playbackSpeed,
+    bassBoost,
+    volumeBoost,
+    lowEndMode,
   } = useStore(useShallow((s) => ({
     currentTrack: s.currentTrack,
     isPlaying: s.isPlaying,
@@ -37,6 +53,12 @@ export function useAudioPlayer() {
     addNotification: s.addNotification,
     discordEnabled: s.discordEnabled,
     systemNotifications: s.systemNotifications,
+    reverbEnabled: s.reverbEnabled,
+    reverbStrength: s.reverbStrength,
+    playbackSpeed: s.playbackSpeed,
+    bassBoost: s.bassBoost,
+    volumeBoost: s.volumeBoost,
+    lowEndMode: s.lowEndMode,
   })));
 
   const loadAbortRef = useRef<number>(0);
@@ -58,12 +80,13 @@ export function useAudioPlayer() {
       
       // Stop current playback before switching
       audio.pause();
+      audio.crossOrigin = "anonymous";
       audio.src = fileUrl;
       audio.currentTime = 0;
       audio.load();
 
       if (isPlaying) {
-        audio.play().catch(err => {
+        audio.play().catch((err: any) => {
           console.warn("Autoplay failed or was interrupted:", err);
         });
       }
@@ -92,9 +115,23 @@ export function useAudioPlayer() {
     }
   }, [seekRequest]);
 
+  // Sync Volume
   useEffect(() => {
-    audio.volume = volume;
+    setEngineVolume(volume);
   }, [volume]);
+
+  // Sync Audio Engine Effects
+  useEffect(() => {
+    setReverbEnabled(reverbEnabled);
+    setReverbStrength(reverbStrength);
+    setPlaybackSpeed(playbackSpeed);
+    setBassBoost(bassBoost);
+    setVolumeBoost(volumeBoost);
+  }, [reverbEnabled, playbackSpeed, bassBoost, volumeBoost, currentTrack?.id]);
+
+  useEffect(() => {
+    setLowEndMode(lowEndMode);
+  }, [lowEndMode]);
   
   const currentCoverUrlRef = useRef<string | undefined>(undefined);
   const lastTrackIdRef = useRef<string | null>(null);
@@ -215,7 +252,10 @@ export function useAudioPlayer() {
         playNext();
       }
     };
-    const onPlay  = () => setIsPlaying(true);
+    const onPlay  = () => {
+      initAudioContext();
+      setIsPlaying(true);
+    };
     const onPause = () => setIsPlaying(false);
     const onError = (e: Event) => {
       console.error("Audio error:", e);

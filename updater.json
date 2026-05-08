@@ -1,0 +1,11 @@
+{
+  "version": "0.7.0",
+  "notes": "Mewsic High-Fidelity Audio Engine Update.",
+  "pub_date": "2026-05-08T12:00:00Z",
+  "platforms": {
+    "linux-x86_64": {
+      "signature": "",
+      "url": ""
+    }
+  }
+}

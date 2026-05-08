@@ -2,15 +2,18 @@ import React, { useState, useEffect } from "react";
 import {
   Palette, FolderOpen, RefreshCw, Trash2, Check, RotateCcw,
   Info, Music2, Volume2, FolderInput, Sun, Moon, Keyboard, Monitor, Share2, MessageSquare, Bell, Zap, FileUp, FolderPlus, Database, Power,
-  Inbox, PanelTop, Image as ImageIcon
+  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud
 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
 import { clearImageCache } from "../../utils/tauriApi";
 import { ACCENT_PRESETS } from "../../utils/helpers";
 import { ConfirmationModal } from "../UI/ConfirmationModal";
+import { UpdateModal } from "../UI/UpdateModal";
 import { ThemedSlider } from "../UI/ThemedSlider";
 import type { ShortcutMap, Shortcut } from "../../types";
 
@@ -107,12 +110,17 @@ export function SettingsView() {
   const [clearingDiscord, setClearingDiscord] = useState(false);
   const [showFlashbangWarning, setShowFlashbangWarning] = useState(false);
   const [showRestartModal, setShowRestartModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [appVersion, setAppVersion] = useState<string>("0.6.9");
   const [localGuiScale, setLocalGuiScale] = useState(guiScale);
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});
   }, []);
+
+  const handleCheckForUpdates = () => {
+    setShowUpdateModal(true);
+  };
 
   useEffect(() => {
     setLocalGuiScale(guiScale);
@@ -462,6 +470,36 @@ export function SettingsView() {
               </div>
             </div>
           </Section>
+
+          {/* Software Updates Section */}
+          <Section icon={<ArrowUpCircle size={16} />} title="Software Updates">
+            <div className="space-y-4 h-full flex flex-col">
+              <div className="p-4 rounded-xl bg-surface-overlay border border-border-subtle flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] font-bold text-text-primary">Current Version</p>
+                    <p className="text-[11px] font-mono text-text-muted">v{appVersion}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleCheckForUpdates}
+                    className="flex-1 bg-surface-raised border border-border-subtle text-text-primary py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-accent hover:text-accent transition-all flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={14} />
+                    Check for Updates
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mt-auto p-3 rounded-lg bg-accent-muted/10 border border-accent/10">
+                <p className="text-[9px] text-text-muted leading-relaxed italic">
+                  Auto-update checks are performed on startup. You can manually trigger a check here to ensure you have the latest features and security patches.
+                </p>
+              </div>
+            </div>
+          </Section>
         </div>
 
         {/* Row 3: Social & Library Info */}
@@ -524,6 +562,10 @@ export function SettingsView() {
 
       {showRestartModal && (
         <ConfirmationModal title="Restart" message="Titlebar changes require a restart. Save?" confirmLabel="Save" cancelLabel="Discard" onConfirm={() => setShowRestartModal(false)} onCancel={() => { setCustomTitlebar(!customTitlebar); setShowRestartModal(false); }} />
+      )}
+
+      {showUpdateModal && (
+        <UpdateModal onClose={() => setShowUpdateModal(false)} />
       )}
     </div>
   );

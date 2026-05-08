@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Mewsic",
-  "version": "0.6.9",
+  "version": "0.7.0",
   "identifier": "dev.xeoniii.mewsic",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,6 +12,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "xeoniii",
+    "copyright": "Copyright © 2026 xeoniii",
+    "shortDescription": "Mewsic - Premium Music Player",
+    "longDescription": "A premium, open-source music player licensed under GPL v3.0, designed for audiophiles with a focus on speed and aesthetics.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -57,6 +61,14 @@
     ],
     "security": {
       "csp": "default-src 'self'; media-src 'self' http://localhost:1422 http://127.0.0.1:1422; img-src 'self' data: blob: http://localhost:1422 http://127.0.0.1:1422 https://*.mzstatic.com https://*.saavncdn.com https://*.ytimg.com https://*.googleusercontent.com"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://raw.githubusercontent.com/xeoniii/Mewsic/main/updater.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIzMTQ3Qzg3QzhDQzc2NEYKUldSUGRzekloM3dVczA5ZE4xd0J2N0FJMWlIRjhaZ0ppb1F5czU3VForU092REVzR0dDbkMzNVIK"
     }
   }
 }

@@ -34,9 +34,24 @@ export default function HarbourView() {
   })));
   const { rescanDirectory } = useLibrary();
 
+  const [dependencyProgress, setDependencyProgress] = useState<{ytdlp: number, ffmpeg: number}>({ytdlp: 0, ffmpeg: 0});
+  const [currentDep, setCurrentDep] = useState<"yt-dlp" | "ffmpeg" | null>(null);
+
   useEffect(() => {
+    let unlistenYt: (() => void) | undefined;
+    let unlistenFm: (() => void) | undefined;
+
     const init = async () => {
       try {
+        unlistenYt = await listen<number>("harbour-download-progress-ytdlp", (event) => {
+          setDependencyProgress(prev => ({ ...prev, ytdlp: event.payload }));
+          setCurrentDep("yt-dlp");
+        });
+        unlistenFm = await listen<number>("harbour-download-progress-ffmpeg", (event) => {
+          setDependencyProgress(prev => ({ ...prev, ffmpeg: event.payload }));
+          setCurrentDep("ffmpeg");
+        });
+
         await invoke("ensure_dependencies");
       } catch (err) {
         console.error("Dependency check failed:", err);
@@ -46,6 +61,13 @@ export default function HarbourView() {
     };
     init();
 
+    return () => {
+      if (unlistenYt) unlistenYt();
+      if (unlistenFm) unlistenFm();
+    };
+  }, []);
+
+  useEffect(() => {
     const unlisten = listen<{ id: string; progress: number }>("download-progress", (event) => {
       updateNotification(event.payload.id, { progress: event.payload.progress });
     });
@@ -159,12 +181,28 @@ export default function HarbourView() {
   };
 
   if (preparing) {
+    const progress = currentDep === "yt-dlp" ? dependencyProgress.ytdlp : dependencyProgress.ffmpeg;
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-surface-base text-text-muted gap-4">
         <Loader2 size={48} className="animate-spin text-accent" />
         <div className="text-center">
           <p className="text-lg font-medium text-text-primary">Preparing Harbour</p>
           <p className="text-sm">Downloading latest discovery tools...</p>
+          
+          {currentDep && (
+            <div className="mt-8 flex flex-col items-center gap-3">
+              <div className="w-64 h-2 bg-surface-raised border border-border-subtle rounded-full overflow-hidden shadow-inner">
+                <div 
+                  className="h-full bg-accent transition-all duration-300 shadow-[0_0_10px_var(--accent-glow)]" 
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="flex justify-between w-64 text-[10px] font-black uppercase tracking-[0.2em]">
+                <span className="text-accent">{currentDep}</span>
+                <span className="text-text-primary">{progress.toFixed(0)}%</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );

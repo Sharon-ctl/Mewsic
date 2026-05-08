@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { X, Search, CheckCircle2, Circle, Music2 } from "lucide-react";
 import { useStore } from "../../store";
+import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
 import type { Track, Playlist } from "../../types";
 
@@ -13,7 +14,7 @@ export function ManagePlaylistTracksModal({
   playlist,
   onClose,
 }: ManagePlaylistTracksModalProps) {
-  const { tracks, updatePlaylist } = useStore();
+  const { tracks, updatePlaylist } = useStore(useShallow((s) => ({ tracks: s.tracks, updatePlaylist: s.updatePlaylist })));
   const { updatePlaylistData } = useLibrary();
   const [search, setSearch] = useState("");
 

@@ -3,27 +3,43 @@ import { Terminal, Cpu, HardDrive, Trash2, RefreshCw, X, Command } from "lucide-
 import { useStore } from "../../store";
 import { useLibrary } from "../../hooks/useLibrary";
 import { clearImageCache } from "../../utils/tauriApi";
+import { useShallow } from "zustand/react/shallow";
+
 interface LogEntry {
   type: "info" | "success" | "error" | "input";
   text: string;
 }
 export function Cyberdeck({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState("");
-  const [logs, setLogs] = useState<LogEntry[]>([    { type: "info", text: "MEWSIC CYBERDECK v0.6.9 INITIALIZED..." },
+  const [logs, setLogs] = useState<LogEntry[]>([
+    { type: "info", text: "MEWSIC CYBERDECK v0.7.0 INITIALIZED..." },
     { type: "info", text: "TYPE 'HELP' FOR AVAILABLE COMMANDS." },
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { 
-    tracks, playlists, accentColor, setAccentColor,    isPlaying, setIsPlaying, skipForward, skipBackward, playNext, playPrev,
+  const {
+    tracks, playlists, accentColor, setAccentColor, isPlaying, setIsPlaying, skipForward, skipBackward, playNext, playPrev,
     volume, setVolume, shuffleEnabled, toggleShuffle, repeatMode, setRepeatMode,
-    toggleMute, theme, setTheme, guiScale, setGuiScale, 
+    toggleMute, theme, setTheme, guiScale, setGuiScale,
     trayEnabled, setTrayEnabled, customTitlebar, setCustomTitlebar,
     discordEnabled, setDiscordEnabled, lowEndMode, setLowEndMode,
     systemNotifications, setSystemNotifications,
     musicDir, setMusicDir, playlistsDir, setPlaylistsDir, coversDir, setCoversDir,
-    isDemoMode, setDemoMode
-  } = useStore();
+    isDemoMode, setDemoMode,
+    isDevMode, setDevMode
+  } = useStore(useShallow((s) => ({
+    tracks: s.tracks, playlists: s.playlists, accentColor: s.accentColor, setAccentColor: s.setAccentColor,
+    isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying, skipForward: s.skipForward, skipBackward: s.skipBackward,
+    playNext: s.playNext, playPrev: s.playPrev, volume: s.volume, setVolume: s.setVolume,
+    shuffleEnabled: s.shuffleEnabled, toggleShuffle: s.toggleShuffle, repeatMode: s.repeatMode, setRepeatMode: s.setRepeatMode,
+    toggleMute: s.toggleMute, theme: s.theme, setTheme: s.setTheme, guiScale: s.guiScale, setGuiScale: s.setGuiScale,
+    trayEnabled: s.trayEnabled, setTrayEnabled: s.setTrayEnabled, customTitlebar: s.customTitlebar, setCustomTitlebar: s.setCustomTitlebar,
+    discordEnabled: s.discordEnabled, setDiscordEnabled: s.setDiscordEnabled, lowEndMode: s.lowEndMode, setLowEndMode: s.setLowEndMode,
+    systemNotifications: s.systemNotifications, setSystemNotifications: s.setSystemNotifications,
+    musicDir: s.musicDir, setMusicDir: s.setMusicDir, playlistsDir: s.playlistsDir, setPlaylistsDir: s.setPlaylistsDir,
+    coversDir: s.coversDir, setCoversDir: s.setCoversDir, isDemoMode: s.isDemoMode, setDemoMode: s.setDemoMode,
+    isDevMode: s.isDevMode, setDevMode: s.setDevMode
+  })));
   const { rescanDirectory } = useLibrary();
   useEffect(() => {
     if (scrollRef.current) {
@@ -54,6 +70,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         addLog("--- SYSTEM COMMANDS ---");
         addLog("  MEWFETCH      - APP INFO");
         addLog("  STATS         - TELEMETRY");
+        addLog("  DEVMODE       - UNLOCK EXPERIMENTAL TOOLS");
         addLog("  DEMO-MODE     - TOGGLE PRIVACY MODE");
         addLog("  CLEAR         - RESET TERMINAL LOGS");
         addLog("  EXIT / QUIT   - CLOSE");
@@ -72,20 +89,27 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         addLog("TIP: TYPE '<COMMAND> HELP' FOR DETAILS.");
         break;
 
-      case "clear":
-        setLogs([]);
+
+      case "devmode":
+        if (args[1] === "help") {
+          addLog("USAGE: DEVMODE <ON/OFF>");
+          addLog("UNLOCKS EXPERIMENTAL FEATURES LIKE THE AUDIO ENGINE.");
+          break;
+        }
+        const devState = args[1] === "on";
+        setDevMode(devState);
+        addLog(`DEVELOPER MODE: ${devState ? 'ENABLED' : 'DISABLED'}`, "success");
         break;
 
       case "demo-mode":
         if (args[1] === "help") {
           addLog("USAGE: DEMO-MODE <ON/OFF>");
           addLog("PRIVACY MODE OBFUSCATES TRACK TITLES, ARTISTS, AND PATHS.");
-          addLog("USE THIS FOR TAKING SCREENSHOTS OR SHOWCASING THE APP.");
           break;
         }
-        const state = args[1] === "on";
-        setDemoMode(state);
-        addLog(`DEMO MODE: ${state ? 'ENABLED' : 'DISABLED'}`, "success");
+        const demoState = args[1] === "on";
+        setDemoMode(demoState);
+        addLog(`DEMO MODE: ${demoState ? 'ENABLED' : 'DISABLED'}`, "success");
         break;
 
       case "set":
@@ -108,7 +132,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         if (!key || !val) { addLog("ERROR: MISSING KEY OR VALUE. TYPE 'SET HELP'.", "error"); break; }
 
         switch (key) {
-          case "theme": 
+          case "theme":
             if (val === "dark" || val === "light") { setTheme(val); addLog(`THEME -> ${val.toUpperCase()}`, "success"); }
             else addLog("INVALID THEME (DARK/LIGHT).", "error");
             break;
@@ -346,13 +370,13 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
 
   return (
     <div className={`fixed inset-0 z-[1000] flex flex-col p-8 font-mono animate-fade-in ${theme === 'dark' ? 'bg-black/85 backdrop-blur-2xl' : 'bg-white/40 backdrop-blur-md'}`} onClick={onClose}>
-      <div 
+      <div
         className={`w-full max-w-3xl mx-auto flex-1 rounded-2xl flex flex-col shadow-[0_0_80px_rgba(var(--accent-rgb),0.2)] overflow-hidden border-2 ${theme === 'dark' ? 'bg-black' : 'bg-surface'}`}
         style={{ borderColor: 'var(--accent)' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Terminal Header */}
-        <div 
+        <div
           className="flex items-center justify-between px-6 py-4 border-b bg-accent/10 rounded-t-[calc(1rem-2px)]"
           style={{ borderBottomColor: 'rgba(var(--accent-rgb), 0.6)' }}
         >
@@ -366,7 +390,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Output */}
-        <div 
+        <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto p-8 space-y-3 scrollbar-hide select-text"
         >
@@ -384,13 +408,13 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Input Area */}
-        <form 
-          onSubmit={handleCommand} 
+        <form
+          onSubmit={handleCommand}
           className="p-5 border-t bg-accent/10 flex items-center gap-4"
           style={{ borderTopColor: 'rgba(var(--accent-rgb), 0.6)' }}
         >
           <Command size={16} className="text-accent/60" />
-          <input 
+          <input
             ref={inputRef}
             type="text"
             value={input}
@@ -403,19 +427,19 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         </form>
 
         {/* Status Bar */}
-        <div 
+        <div
           className="px-6 py-3 bg-accent/20 border-t flex items-center justify-between rounded-b-[calc(1rem-2px)]"
           style={{ borderTopColor: 'rgba(var(--accent-rgb), 0.6)' }}
         >
           <div className="flex gap-8">
-             <div className="flex items-center gap-2">
-                <Cpu size={12} className="text-accent opacity-80" />
-                <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">CPU: OPTIMAL</span>
-             </div>
-             <div className="flex items-center gap-2">
-                <HardDrive size={12} className="text-accent opacity-80" />
-                <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">DISK: {tracks.length} OBJ</span>
-             </div>
+            <div className="flex items-center gap-2">
+              <Cpu size={12} className="text-accent opacity-80" />
+              <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">CPU: OPTIMAL</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <HardDrive size={12} className="text-accent opacity-80" />
+              <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">DISK: {tracks.length} OBJ</span>
+            </div>
           </div>
           <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v0.6.9</span>
         </div>
