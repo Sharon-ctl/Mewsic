@@ -4,8 +4,20 @@
   "pub_date": "2026-05-08T12:00:00Z",
   "platforms": {
     "linux-x86_64": {
-      "signature": "",
-      "url": ""
+      "signature": "PLACEHOLDER_SIGNATURE",
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.7.0/mewsic_0.7.0_amd64.AppImage.tar.gz"
+    },
+    "windows-x86_64": {
+      "signature": "PLACEHOLDER_SIGNATURE",
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.7.0/mewsic_0.7.0_x64-setup.nsis.zip"
+    },
+    "darwin-x86_64": {
+      "signature": "PLACEHOLDER_SIGNATURE",
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.7.0/mewsic_0.7.0_x64.app.tar.gz"
+    },
+    "darwin-aarch64": {
+      "signature": "PLACEHOLDER_SIGNATURE",
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.7.0/mewsic_0.7.0_aarch64.app.tar.gz"
     }
   }
 }

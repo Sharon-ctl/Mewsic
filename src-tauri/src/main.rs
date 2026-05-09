@@ -92,8 +92,110 @@ pub struct AppPaths {
     pub covers_dir: String,
 }
 
+enum DiscordCommand {
+    Update {
+        title: String,
+        artist: String,
+        is_playing: bool,
+        current_time: f64,
+        duration: f64,
+        playlist_name: String,
+        cover_url: Option<String>,
+    },
+    Clear,
+}
+
 pub struct DiscordState {
-    pub client: Mutex<Option<DiscordIpcClient>>,
+    tx: Mutex<std::sync::mpsc::Sender<DiscordCommand>>,
+}
+
+impl DiscordState {
+    fn new() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel::<DiscordCommand>();
+
+        std::thread::spawn(move || {
+            let mut client: Option<DiscordIpcClient> = None;
+            let mut last_attempt = 0;
+
+            for cmd in rx {
+                match cmd {
+                    DiscordCommand::Update {
+                        title,
+                        artist,
+                        is_playing,
+                        current_time,
+                        duration,
+                        playlist_name,
+                        cover_url,
+                    } => {
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_secs();
+
+                        if client.is_none() && now - last_attempt > 10 {
+                            last_attempt = now;
+                            if let Ok(mut c) = DiscordIpcClient::new("1497554583726329938") {
+                                if c.connect().is_ok() {
+                                    client = Some(c);
+                                }
+                            }
+                        }
+
+                        if let Some(c) = client.as_mut() {
+                            let details = title.clone();
+                            let state_str = format!("by {}", artist);
+                            let small_text = if is_playing {
+                                "Playing".to_string()
+                            } else {
+                                let mins = (current_time / 60.0).floor() as u32;
+                                let secs = (current_time % 60.0).floor() as u32;
+                                format!("Paused at {:02}:{:02}", mins, secs)
+                            };
+
+                            let large_image = cover_url.unwrap_or_else(|| "cover".to_string());
+                            let mut activity = activity::Activity::new()
+                                .details(&details)
+                                .state(&state_str)
+                                .activity_type(activity::ActivityType::Listening)
+                                .assets(
+                                    activity::Assets::new()
+                                        .large_image(&large_image)
+                                        .small_image("icon")
+                                        .large_text(&playlist_name)
+                                        .small_text(&small_text),
+                                )
+                                .buttons(vec![activity::Button::new(
+                                    "Download Mewsic",
+                                    "https://xeoniii.github.io/Mewsic",
+                                )]);
+
+                            if is_playing {
+                                let start_time = now as i64 - current_time as i64;
+                                let mut timestamps = activity::Timestamps::new().start(start_time);
+                                if duration > 0.0 {
+                                    timestamps = timestamps.end(start_time + duration as i64);
+                                }
+                                activity = activity.timestamps(timestamps);
+                            }
+
+                            if c.set_activity(activity).is_err() {
+                                client = None;
+                            }
+                        }
+                    }
+                    DiscordCommand::Clear => {
+                        if let Some(mut c) = client.take() {
+                            let _ = c.clear_activity();
+                            let _ = c.close();
+                        }
+                    }
+                }
+            }
+        });
+
+        Self { tx: Mutex::new(tx) }
+    }
 }
 
 pub struct AppState {
@@ -328,7 +430,7 @@ fn import_files(sources: Vec<String>, target_dir: String) -> Result<u32, String>
 }
 
 #[tauri::command]
-fn scan_music_directory(dir_path: String) -> Result<ScanResult, String> {
+async fn scan_music_directory(dir_path: String) -> Result<ScanResult, String> {
     let root = PathBuf::from(&dir_path);
     if !root.exists() {
         return Err(format!("Directory does not exist: {}", dir_path));
@@ -386,12 +488,12 @@ fn scan_music_directory(dir_path: String) -> Result<ScanResult, String> {
 }
 
 #[tauri::command]
-fn get_track_metadata(file_path: String) -> Result<Track, String> {
+async fn get_track_metadata(file_path: String) -> Result<Track, String> {
     parse_track(Path::new(&file_path))
 }
 
 #[tauri::command]
-fn list_playlists(playlists_dir: String) -> Result<Vec<Playlist>, String> {
+async fn list_playlists(playlists_dir: String) -> Result<Vec<Playlist>, String> {
     let root = PathBuf::from(&playlists_dir);
     if !root.exists() {
         return Ok(vec![]);
@@ -419,7 +521,7 @@ fn list_playlists(playlists_dir: String) -> Result<Vec<Playlist>, String> {
 }
 
 #[tauri::command]
-fn create_playlist(playlists_dir: String, name: String) -> Result<Playlist, String> {
+async fn create_playlist(playlists_dir: String, name: String) -> Result<Playlist, String> {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let created_at = SystemTime::now()
@@ -460,7 +562,7 @@ fn create_playlist(playlists_dir: String, name: String) -> Result<Playlist, Stri
 }
 
 #[tauri::command]
-fn delete_track(file_path: String) -> Result<(), String> {
+async fn delete_track(file_path: String) -> Result<(), String> {
     let path = PathBuf::from(&file_path);
     if path.exists() {
         fs::remove_file(path).map_err(|e| format!("Failed to delete file: {}", e))?;
@@ -469,7 +571,7 @@ fn delete_track(file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn save_playlist(playlist: Playlist) -> Result<(), String> {
+async fn save_playlist(playlist: Playlist) -> Result<(), String> {
     let path = PathBuf::from(&playlist.file_path);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -480,7 +582,7 @@ fn save_playlist(playlist: Playlist) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn rename_playlist(mut playlist: Playlist, new_name: String) -> Result<Playlist, String> {
+async fn rename_playlist(mut playlist: Playlist, new_name: String) -> Result<Playlist, String> {
     let old_path = PathBuf::from(&playlist.file_path);
     if !old_path.exists() {
         return Err("Original playlist file not found".to_string());
@@ -519,7 +621,7 @@ fn rename_playlist(mut playlist: Playlist, new_name: String) -> Result<Playlist,
 }
 
 #[tauri::command]
-fn delete_playlist(file_path: String) -> Result<(), String> {
+async fn delete_playlist(file_path: String) -> Result<(), String> {
     let path = PathBuf::from(&file_path);
     if path.exists() {
         fs::remove_file(path).map_err(|e| e.to_string())?;
@@ -528,7 +630,7 @@ fn delete_playlist(file_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn import_playlist(playlists_dir: String, source_path: String) -> Result<Playlist, String> {
+async fn import_playlist(playlists_dir: String, source_path: String) -> Result<Playlist, String> {
     let source = PathBuf::from(&source_path);
     let content = fs::read_to_string(&source).map_err(|e| format!("Cannot read source: {}", e))?;
     let mut pl = serde_json::from_str::<Playlist>(&content)
@@ -1062,18 +1164,24 @@ async fn pick_directory(app_handle: tauri::AppHandle) -> Result<Option<String>, 
 }
 
 #[tauri::command]
-fn get_cover_art(file_path: String) -> Result<Option<String>, String> {
+async fn get_cover_art(file_path: String) -> Result<Option<String>, String> {
     let path = Path::new(&file_path);
+    
+    // Check if it's already a URL (e.g. from iTunes)
+    if file_path.starts_with("http") {
+        return Ok(Some(file_path));
+    }
+
     if !path.exists() {
         return Ok(None);
     }
 
-    let tagged = lofty::read_from_path(path).map_err(|e| format!("lofty error: {}", e))?;
-    let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
-
-    if let Some(t) = tag {
-        if !t.pictures().is_empty() {
-            return Ok(Some(file_path));
+    if let Ok(tagged) = lofty::read_from_path(path) {
+        let tag = tagged.primary_tag().or_else(|| tagged.first_tag());
+        if let Some(t) = tag {
+            if !t.pictures().is_empty() {
+                return Ok(Some(file_path));
+            }
         }
     }
 
@@ -1227,8 +1335,8 @@ fn toggle_fullscreen(window: tauri::Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn update_discord_rpc(
-    state: tauri::State<DiscordState>,
+async fn update_discord_rpc(
+    state: tauri::State<'_, DiscordState>,
     title: String,
     artist: String,
     is_playing: bool,
@@ -1237,74 +1345,24 @@ fn update_discord_rpc(
     playlist_name: String,
     cover_url: Option<String>,
 ) -> Result<(), String> {
-    let mut client_lock = state.client.lock().map_err(|e| e.to_string())?;
-
-    if client_lock.is_none() {
-        if let Ok(mut client) = DiscordIpcClient::new("1497554583726329938") {
-            if client.connect().is_ok() {
-                *client_lock = Some(client);
-            }
-        }
+    if let Ok(tx) = state.tx.lock() {
+        let _ = tx.send(DiscordCommand::Update {
+            title,
+            artist,
+            is_playing,
+            current_time,
+            duration,
+            playlist_name,
+            cover_url,
+        });
     }
-
-    if let Some(client) = client_lock.as_mut() {
-        let details = format!("{}", title);
-        let state_str = format!("by {}", artist);
-
-        let small_text_str = if is_playing {
-            "Playing".to_string()
-        } else {
-            let mins = (current_time / 60.0).floor() as u32;
-            let secs = (current_time % 60.0).floor() as u32;
-            format!("Paused at {:02}:{:02}", mins, secs)
-        };
-
-        let large_image = cover_url.unwrap_or_else(|| "cover".to_string());
-        let mut activity = activity::Activity::new()
-            .details(&details)
-            .state(&state_str)
-            .activity_type(activity::ActivityType::Listening)
-            .assets(
-                activity::Assets::new()
-                    .large_image(&large_image)
-                    .small_image("icon")
-                    .large_text(&playlist_name)
-                    .small_text(&small_text_str),
-            )
-            .buttons(vec![activity::Button::new(
-                "Download Mewsic",
-                "https://xeoniii.github.io/Mewsic",
-            )]);
-
-        if is_playing {
-            if let Ok(now) = SystemTime::now().duration_since(UNIX_EPOCH) {
-                let start_time = now.as_secs() as i64 - current_time as i64;
-                let mut timestamps = activity::Timestamps::new().start(start_time);
-                
-                if duration > 0.0 {
-                    let end_time = start_time + duration as i64;
-                    timestamps = timestamps.end(end_time);
-                }
-                
-                activity = activity.timestamps(timestamps);
-            }
-        }
-
-        if client.set_activity(activity).is_err() {
-            *client_lock = None;
-        }
-    }
-
     Ok(())
 }
 
 #[tauri::command]
-fn clear_discord_rpc(state: tauri::State<DiscordState>) -> Result<(), String> {
-    let mut client_lock = state.client.lock().map_err(|e| e.to_string())?;
-    if let Some(client) = client_lock.as_mut() {
-        let _ = client.clear_activity();
-        let _ = client.close();
-        *client_lock = None;
+async fn clear_discord_rpc(state: tauri::State<'_, DiscordState>) -> Result<(), String> {
+    if let Ok(tx) = state.tx.lock() {
+        let _ = tx.send(DiscordCommand::Clear);
     }
     Ok(())
 }
@@ -1322,8 +1380,9 @@ fn start_asset_server(_port: u16) {
         let server = Server::http("0.0.0.0:1422").expect("Failed to start asset server");
         let server = std::sync::Arc::new(server);
 
-        // Spawn multiple worker threads to handle requests in parallel
-        for _ in 0..4 {
+        // Spawn 32 worker threads to handle requests in parallel
+        // This prevents slow media streaming from exhausting the pool and blocking image loads
+        for _ in 0..32 {
             let server = server.clone();
             std::thread::spawn(move || {
                 for request in server.incoming_requests() {
@@ -1688,9 +1747,7 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        .manage(DiscordState {
-            client: Mutex::new(None),
-        })
+        .manage(DiscordState::new())
         .manage(AppState {
             tray_enabled: AtomicBool::new(true),
         })
@@ -1699,6 +1756,9 @@ fn main() {
             token_expiry: Mutex::new(0),
         })
         .setup(|app| {
+            // ── Local Asset Server (tiny_http) ────────────────────────
+            start_asset_server(1422);
+
             // ── OS Media Controls (MPRIS / SMTC / Now Playing) ────────
             let media_state = MediaManagerState::new(app.handle().clone());
             app.manage(media_state);

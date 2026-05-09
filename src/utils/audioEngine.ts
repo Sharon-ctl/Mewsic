@@ -47,14 +47,16 @@ try {
 
   // Instant Pause/Play optimization for DSP
   audioInstance.addEventListener("pause", () => {
-    if (audioCtx && audioCtx.state === "running") {
-      audioCtx.suspend();
+    if (audioCtx && masterGain) {
+      masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      masterGain.gain.setTargetAtTime(0.0001, audioCtx.currentTime, 0.02);
     }
   });
 
   audioInstance.addEventListener("play", () => {
-    if (audioCtx && audioCtx.state === "suspended") {
-      audioCtx.resume();
+    if (audioCtx && masterGain) {
+      masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      masterGain.gain.setTargetAtTime(currentVolume, audioCtx.currentTime, 0.02);
     }
   });
 
@@ -160,7 +162,8 @@ function syncEngineState() {
   }
   if (masterGain) {
     masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setTargetAtTime(currentVolume, now, 0.01);
+    const targetVol = audio?.paused ? 0.0001 : currentVolume;
+    masterGain.gain.setTargetAtTime(targetVol, now, 0.01);
   }
   
   if (dryGain && wetGain) {

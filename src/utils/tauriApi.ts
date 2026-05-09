@@ -7,7 +7,7 @@
  * touches raw Tauri strings.
  */
 
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc as tauriConvertFileSrc } from "@tauri-apps/api/core";
 import type { Track, Playlist, AppPaths, ScanResult } from "../types";
 
 export function convertFileSrc(filePath: string): string {

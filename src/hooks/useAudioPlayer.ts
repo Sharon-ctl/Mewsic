@@ -83,7 +83,6 @@ export function useAudioPlayer() {
       audio.crossOrigin = "anonymous";
       audio.src = fileUrl;
       audio.currentTime = 0;
-      audio.load();
 
       if (isPlaying) {
         audio.play().catch((err: any) => {
@@ -158,6 +157,7 @@ export function useAudioPlayer() {
 
       // Handle metadata & notifications only on track change
       if (lastTrackIdRef.current !== currentTrack.id) {
+        const isNewTrack = lastTrackIdRef.current !== currentTrack.id;
         lastTrackIdRef.current = currentTrack.id;
 
         // Cover handling
@@ -167,39 +167,47 @@ export function useAudioPlayer() {
           currentCoverUrlRef.current = cached;
         } else {
           currentCoverUrlRef.current = undefined;
-          try {
-            const metadata = await fetchTrackMetadata(`${currentTrack.title} ${currentTrack.artist}`);
+          // Don't await this to avoid blocking the RPC update
+          fetchTrackMetadata(`${currentTrack.title} ${currentTrack.artist}`).then(metadata => {
             if (metadata.coverArt) {
               useStore.getState().setDiscordCoverCache(currentTrack.id, metadata.coverArt);
               if (useStore.getState().currentTrack?.id === currentTrack.id) {
                 currentCoverUrlRef.current = metadata.coverArt;
+                // Re-trigger RPC update with cover
+                updateDiscordRpc(
+                  currentTrack.title,
+                  currentTrack.artist,
+                  useStore.getState().isPlaying,
+                  audio.currentTime,
+                  currentTrack.duration || audio.duration || 0,
+                  playlistName,
+                  metadata.coverArt
+                ).catch(() => {});
               }
             } else {
               useStore.getState().setDiscordCoverCache(currentTrack.id, "none");
             }
-          } catch (err) {}
+          }).catch(() => {});
         }
 
-        // Send System Notification (Safely check for plugin)
-        if (state.systemNotifications) {
+        // Send System Notification
+        if (state.systemNotifications && isNewTrack) {
           try {
-            const notificationPlugin = await import("@tauri-apps/plugin-notification");
-            if (notificationPlugin && notificationPlugin.isPermissionGranted) {
-              let hasPermission = await notificationPlugin.isPermissionGranted();
-              if (!hasPermission) {
-                const permission = await notificationPlugin.requestPermission();
-                hasPermission = permission === "granted";
-              }
-              if (hasPermission) {
-                notificationPlugin.sendNotification({
-                  title: `Now Playing: ${currentTrack.title}`,
-                  body: `${currentTrack.artist} — ${currentTrack.album}`,
-                  icon: currentCoverUrlRef.current,
-                });
-              }
+            const { isPermissionGranted, requestPermission, sendNotification } = await import("@tauri-apps/plugin-notification");
+            let hasPermission = await isPermissionGranted();
+            if (!hasPermission) {
+              const permission = await requestPermission();
+              hasPermission = permission === "granted";
+            }
+            if (hasPermission) {
+              sendNotification({
+                title: `Now Playing: ${currentTrack.title}`,
+                body: `${currentTrack.artist} — ${currentTrack.album}`,
+                icon: currentCoverUrlRef.current,
+              });
             }
           } catch (err) {
-            console.warn("System notification plugin not available or failed:", err);
+            console.warn("System notification failed:", err);
           }
         }
       }
@@ -249,7 +257,11 @@ export function useAudioPlayer() {
         audio.currentTime = 0;
         audio.play().catch(() => {});
       } else {
-        playNext();
+        // Add a small delay to automatic switching to ensure the audio engine
+        // has finished the current track before we swap the source.
+        setTimeout(() => {
+          playNext();
+        }, 100);
       }
     };
     const onPlay  = () => {

@@ -62,17 +62,29 @@ export function useLibrary() {
   const initialize = useCallback(async () => {
     try {
       if (!musicDir || !playlistsDir) return;
-      setScanning(true, 0);
-      const result = await scanMusicDirectory(musicDir);
-      setTracks(result.tracks);
+      
+      // If we already have tracks from persistence, don't show scanning state
+      // but still refresh in the background.
+      const hasTracks = tracks.length > 0;
+      
+      if (!hasTracks) {
+        setScanning(true, 0);
+      }
+
+      // Load playlists first as they are usually fast
       const pls = await listPlaylists(playlistsDir);
       setPlaylists(pls);
+
+      // Then scan music
+      const result = await scanMusicDirectory(musicDir);
+      setTracks(result.tracks);
+      
       setScanning(false);
     } catch (err) {
       console.error("Library init error:", err);
       setScanning(false);
     }
-  }, [musicDir, playlistsDir, setScanning, setTracks, setPlaylists]);
+  }, [musicDir, playlistsDir, setScanning, setTracks, setPlaylists, tracks.length]);
 
   const changeMusicDirectory = useCallback(async () => {
     const dir = await pickDirectory();

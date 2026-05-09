@@ -559,6 +559,8 @@ export const useStore = create<Store>()(
       name: "mewsic-storage",
       // Only persist settings & library dirs, not the full track list
       partialize: (s) => ({
+        tracks: s.tracks,
+        playlists: s.playlists,
         accentColor: s.accentColor,
         volume: s.volume,
         repeatMode: s.repeatMode,
