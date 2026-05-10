@@ -16,6 +16,8 @@ let wetGain: GainNode | null = null;
 let boostGain: GainNode | null = null;
 let masterGain: GainNode | null = null;
 let limiter: DynamicsCompressorNode | null = null;
+let eqFilters: BiquadFilterNode[] = [];
+const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
 // Pre-generated impulse response
 let impulseBuffer: AudioBuffer | null = null;
@@ -127,7 +129,22 @@ export function initAudioContext() {
     limiter.attack.setValueAtTime(0.003, audioCtx.currentTime);  // Fast attack
     limiter.release.setValueAtTime(0.1, audioCtx.currentTime);   // Standard release
     
-    source.connect(bassFilter);
+    // Create 10 EQ bands
+    eqFilters = EQ_FREQUENCIES.map(freq => {
+      const filter = audioCtx!.createBiquadFilter();
+      filter.type = "peaking";
+      filter.frequency.value = freq;
+      filter.Q.value = 1.4; // Standard Q for 10-band EQ
+      filter.gain.value = 0;
+      return filter;
+    });
+
+    source.connect(eqFilters[0]);
+    for (let i = 0; i < eqFilters.length - 1; i++) {
+      eqFilters[i].connect(eqFilters[i + 1]);
+    }
+    eqFilters[eqFilters.length - 1].connect(bassFilter);
+
     bassFilter.connect(dryGain);
     bassFilter.connect(reverbNode);
     reverbNode.connect(wetGain);
@@ -198,6 +215,14 @@ export function setReverbStrength(strength: number) {
 
 export function setPlaybackSpeed(speed: number) {
   if (audio) audio.playbackRate = speed;
+}
+
+export function setEqGain(index: number, gain: number) {
+  if (eqFilters[index] && audioCtx) {
+    const now = audioCtx.currentTime;
+    eqFilters[index].gain.cancelScheduledValues(now);
+    eqFilters[index].gain.setTargetAtTime(gain, now, 0.01);
+  }
 }
 
 export function setBassBoost(db: number) {

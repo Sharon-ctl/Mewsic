@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Volume2,
   Zap,
@@ -7,7 +7,15 @@ import {
   Radio,
   Headphones,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Activity,
+  Music,
+  Trash2,
+  Bookmark,
+  Plus,
+  Save,
+  Pencil,
+  MoreVertical
 } from "lucide-react";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
@@ -22,8 +30,21 @@ export function AudioView() {
     playbackSpeed, setPlaybackSpeed,
     volumeBoost, setVolumeBoost,
     resetAudioEffects,
-    isDevMode,
     lowEndMode,
+    isDevMode,
+    eqGains,
+    setEqGain,
+    resetEq,
+    audioPresets,
+    activePresetId,
+    renamePresetId,
+    setRenamePresetId,
+    applyPreset,
+    savePreset,
+    deletePreset,
+    updatePresetName,
+    updatePresetSettings,
+    addNotification,
   } = useStore(useShallow((s) => ({
     volume: s.volume ?? 0.8,
     setVolume: s.setVolume,
@@ -37,28 +58,50 @@ export function AudioView() {
     setPlaybackSpeed: s.setPlaybackSpeed,
     volumeBoost: s.volumeBoost ?? 1.0,
     setVolumeBoost: s.setVolumeBoost,
-    resetAudioEffects: s.resetAudioEffects,
-    isDevMode: s.isDevMode,
-    lowEndMode: s.lowEndMode,
+    resetAudioEffects: s.resetAudioEffects || (() => { }),
+    eqGains: s.eqGains || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    setEqGain: s.setEqGain || (() => { }),
+    resetEq: s.resetEq || (() => { }),
+    lowEndMode: !!s.lowEndMode,
+    isDevMode: !!s.isDevMode,
+    audioPresets: s.audioPresets || [],
+    activePresetId: s.activePresetId,
+    renamePresetId: s.renamePresetId,
+    setRenamePresetId: s.setRenamePresetId,
+    applyPreset: s.applyPreset,
+    savePreset: s.savePreset,
+    deletePreset: s.deletePreset,
+    updatePresetName: s.updatePresetName,
+    updatePresetSettings: s.updatePresetSettings,
+    addNotification: s.addNotification,
   })));
 
-  if (!isDevMode) {
-    return (
-      <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page">
-        <div className="h-full flex flex-col items-center justify-center space-y-6 animate-fade-in p-8">
-          <div className="w-24 h-24 rounded-[2rem] bg-accent/5 flex items-center justify-center text-accent/20 border border-accent/10 shadow-[0_0_50px_rgba(var(--accent-rgb),0.05)]">
-            <Zap size={48} className="animate-pulse" />
-          </div>
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-black tracking-tight text-text-primary">Coming Soon</h2>
-            <p className="text-sm text-text-muted max-w-sm mx-auto leading-relaxed font-medium">
-              The Mewsic Audio Engine is currently in private beta. We're working on optimizing the engine for high-fidelity audio and better features. Will be accessible for users in a future update!
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const [presetName, setPresetName] = useState("");
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+
+  const handleSavePreset = () => {
+    if (!presetName.trim()) return;
+    savePreset(presetName.trim());
+    setPresetName("");
+    setShowSaveDialog(false);
+    addNotification?.("Preset created successfully", "success");
+  };
+
+  const handleRenamePreset = () => {
+    if (!renameValue.trim() || !renamePresetId) return;
+    updatePresetName(renamePresetId, renameValue.trim());
+    setRenamePresetId(null);
+    setRenameValue("");
+    addNotification?.("Preset renamed successfully", "success");
+  };
+
+  useEffect(() => {
+    if (renamePresetId) {
+      const p = audioPresets.find(p => p.id === renamePresetId);
+      if (p) setRenameValue(p.name);
+    }
+  }, [renamePresetId, audioPresets]);
 
   if (lowEndMode) {
     return (
@@ -70,8 +113,8 @@ export function AudioView() {
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-black tracking-tight text-text-primary">Engine Locked</h2>
             <p className="text-sm text-text-muted max-w-sm mx-auto leading-relaxed font-medium">
-              Audio Engine customization is currently unavailable because <span className="text-amber-500 font-bold">Low-End Mode</span> is enabled in your settings. 
-              <br/><br/>
+              Audio Engine customization is currently unavailable because <span className="text-amber-500 font-bold">Low-End Mode</span> is enabled in your settings.
+              <br /><br />
               To maintain system stability and prevent audio stuttering on your device, DSP effects like Reverb and Bass Boost are restricted.
             </p>
           </div>
@@ -90,7 +133,7 @@ export function AudioView() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Mewsic Audio Engine</h1>
-            <p className="text-sm text-text-muted">designed for high quality audio</p>
+            <p className="text-sm text-text-muted">v1.06 | Designed for high quality audio.</p>
           </div>
         </div>
         <button
@@ -104,6 +147,114 @@ export function AudioView() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+
+          {/* Presets Section */}
+          <section className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+                  <Bookmark size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl tracking-tight">Audio Presets</h3>
+                  <p className="text-[10px] text-text-muted uppercase tracking-[0.2em] font-black">Save & load custom profiles</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSaveDialog(true)}
+                className="btn-accent h-10 px-4"
+              >
+                <Plus size={15} />
+                <span>Create New Preset</span>
+              </button>
+            </div>
+
+            {showSaveDialog && (
+              <div className="glass rounded-[1.5rem] p-6 border border-accent/20 mb-8 animate-in fade-in zoom-in duration-200">
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                  <input
+                    type="text"
+                    placeholder="Enter preset name (e.g. Bass Boosted, Studio...)"
+                    value={presetName}
+                    onChange={(e) => setPresetName(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-accent/50 outline-none transition-all"
+                    onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
+                    autoFocus
+                  />
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <button
+                      onClick={handleSavePreset}
+                      className="flex-1 md:flex-none btn-accent h-11 px-8"
+                    >
+                      Create
+                    </button>
+                    <button
+                      onClick={() => setShowSaveDialog(false)}
+                      className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {renamePresetId && (
+              <div className="glass rounded-[1.5rem] p-6 border border-accent/20 mb-8 animate-in fade-in zoom-in duration-200">
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                  <input
+                    type="text"
+                    placeholder="New preset name..."
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-accent/50 outline-none transition-all"
+                    onKeyDown={(e) => e.key === 'Enter' && handleRenamePreset()}
+                    autoFocus
+                  />
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <button
+                      onClick={handleRenamePreset}
+                      className="flex-1 md:flex-none btn-accent h-11 px-8"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRenamePresetId(null);
+                      }}
+                      className="flex-1 md:flex-none px-6 py-3 rounded-xl bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {audioPresets.map((preset) => (
+                <div
+                  key={preset.id}
+                  data-preset-id={preset.id}
+                  data-context="audio-preset"
+                  onClick={() => applyPreset(preset.id)}
+                  className={`group relative p-5 rounded-[1.5rem] border transition-all cursor-pointer ${activePresetId === preset.id
+                    ? 'bg-accent/10 border-accent/30 shadow-lg shadow-accent/5'
+                    : 'bg-white/5 border-white/5 hover:border-white/20 hover:bg-white/[0.07]'
+                    }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className={`p-2 rounded-lg ${activePresetId === preset.id ? 'bg-accent/20 text-accent' : 'bg-white/5 text-text-muted'}`}>
+                      <Music size={14} />
+                    </div>
+                  </div>
+                  <h4 className={`font-bold text-sm truncate ${activePresetId === preset.id ? 'text-accent' : 'text-text-primary'}`}>
+                    {preset.name}
+                  </h4>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Master Volume Card */}
           <section className="glass rounded-[2rem] p-10 border border-border-subtle relative overflow-hidden shadow-2xl">
@@ -332,9 +483,83 @@ export function AudioView() {
 
           </div>
 
+          {/* Equalizer Placeholder Card */}
+          <section className="glass rounded-[2rem] p-8 border border-border-subtle relative overflow-hidden group shadow-2xl">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
+              <Activity size={80} />
+            </div>
+            <div className="flex items-center justify-between relative mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+                  <Sliders size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-xl tracking-tight">Parametric Equalizer</h3>
+                  <p className={`text-[10px] uppercase tracking-[0.2em] font-black ${isDevMode ? 'text-accent' : 'text-text-muted'}`}>
+                    {isDevMode ? 'Currently in private testing' : 'DSP Module Restricted'}
+                  </p>
+                </div>
+              </div>
+              {isDevMode && (
+                <button
+                  onClick={resetEq}
+                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-accent/10 border border-white/5 hover:border-accent/30 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Reset to Flat
+                </button>
+              )}
+            </div>
+
+            <div className={`flex flex-col items-center justify-between h-52 border-2 ${isDevMode ? 'border-transparent' : 'border-dashed border-white/5'} rounded-2xl bg-white/[0.02] p-6 text-center transition-all`}>
+              {isDevMode ? (
+                <div className="w-full grid grid-cols-5 md:grid-cols-10 gap-4 h-full">
+                  {["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"].map((freq, i) => (
+                    <div key={freq} className="flex flex-col items-center gap-4">
+                      <div className="flex-1 relative w-full flex justify-center">
+                        <div className="absolute inset-y-0 w-px bg-white/5" />
+                        <input
+                          type="range"
+                          min="-12"
+                          max="12"
+                          step="0.5"
+                          value={eqGains[i] ?? 0}
+                          onChange={(e) => setEqGain(i, parseFloat(e.target.value))}
+                          className="vertical-range h-full accent-accent cursor-ns-resize"
+                          style={{ WebkitAppearance: 'slider-vertical' } as React.CSSProperties}
+                        />
+                      </div>
+                      <div className="text-center">
+                        <p className={`text-[10px] font-bold tabular-nums ${(eqGains[i] ?? 0) !== 0 ? 'text-accent' : 'text-text-primary'}`}>
+                          {(eqGains[i] ?? 0) > 0 ? `+${eqGains[i]}` : (eqGains[i] ?? 0)}
+                        </p>
+                        <p className="text-[9px] text-text-muted font-black uppercase tracking-tighter opacity-60">{freq}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center space-y-2">
+                  <p className="text-xs text-text-muted font-bold uppercase tracking-widest">Equalizer Interface Container</p>
+                  <p className="text-[9px] text-text-muted/50 max-w-xs leading-relaxed">
+                    This module is currently restricted to authorized testers.
+                  </p>
+                </div>
+              )}
+
+              {!isDevMode && (
+                <div className="w-full grid grid-cols-10 gap-2 mt-4 opacity-30">
+                  {["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"].map(f => (
+                    <div key={f} className="text-[8px] font-black text-center text-text-muted uppercase tracking-tighter">{f}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+
           <div className="flex justify-center gap-8 text-[10px] font-black text-text-muted uppercase tracking-[0.3em] py-8 opacity-30">
-            <span>Optimized Engine</span>
-            <span>Bit-Perfect Path</span>
+            <span>Mewsic Audio Engine</span>
+            <span>Absolute control over audio</span>
+            <span>Engineered by xeoniii.dev</span>
           </div>
         </div>
       </div>

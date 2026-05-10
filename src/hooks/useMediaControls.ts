@@ -31,6 +31,7 @@ import {
 export function useMediaControls() {
   const currentTrack = useStore((s) => s.currentTrack);
   const isPlaying = useStore((s) => s.isPlaying);
+  const seekRequest = useStore((s) => s.seekRequest);
 
   // ── 1. Sync metadata when the track changes ──────────────────────
   const lastTrackIdRef = useRef<string | null>(null);
@@ -72,8 +73,8 @@ export function useMediaControls() {
 
       // Also sync the native webview Media Session so the "old" MPRIS entry
       // looks identical to the souvlaki one, and can handle hardware keys properly.
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
+      if ('mediaSession' in navigator && (window as any).MediaMetadata) {
+        navigator.mediaSession.metadata = new (window as any).MediaMetadata({
           title: currentTrack.title,
           artist: currentTrack.artist,
           album: currentTrack.album,
@@ -82,7 +83,7 @@ export function useMediaControls() {
       }
       
       // Update playback state immediately after metadata
-      await updateMediaPlayback(useStore.getState().isPlaying, useStore.getState().currentTime || 0);
+      updateMediaPlayback(useStore.getState().isPlaying, useStore.getState().currentTime || 0).catch(() => {});
     };
 
     syncMetadata().catch(() => {});
@@ -98,15 +99,23 @@ export function useMediaControls() {
     lastSyncRef.current = Date.now();
   }, [isPlaying]);
 
-  // Periodic heartbeat for progress bar (every 5s while playing)
+  // Periodic heartbeat for progress bar (every 1s while playing)
   useEffect(() => {
     if (!isPlaying) return;
     const interval = setInterval(() => {
       const state = useStore.getState();
       updateMediaPlayback(state.isPlaying, state.currentTime || 0).catch(() => {});
-    }, 5000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [isPlaying]);
+
+  // Immediate sync on seek
+  useEffect(() => {
+    if (seekRequest !== null) {
+      updateMediaPlayback(isPlaying, seekRequest).catch(() => {});
+    }
+  }, [seekRequest, isPlaying]);
+
 
   // ── 3. Listen for OS media key events ────────────────────────────
   useEffect(() => {

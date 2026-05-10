@@ -100,3 +100,14 @@ export interface ShortcutMap {
   volumeUp: Shortcut;
   volumeDown: Shortcut;
 }
+
+export interface AudioPreset {
+  id: string;
+  name: string;
+  reverbEnabled: boolean;
+  reverbStrength: number;
+  playbackSpeed: number;
+  bassBoost: number;
+  volumeBoost: number;
+  eqGains: number[];
+}

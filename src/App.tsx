@@ -92,7 +92,7 @@ export default function App() {
   const { initialize } = useLibrary();
 
   // OS media controls (MPRIS / SMTC / Now Playing)
-  useMediaControls();
+  useMediaControls(); // Sync with OS Media Controls Interface
 
   useEffect(() => {
     document.documentElement.dataset.accent = accentColor;

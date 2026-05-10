@@ -265,6 +265,13 @@ input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: 0 0 12px var(--accent-glow);
 }
 
+.vertical-range {
+  writing-mode: bt-lr; /* IE */
+  -webkit-appearance: slider-vertical; /* WebKit */
+  width: 20px;
+  background: transparent;
+}
+
 /* Progress track fill via CSS custom property */
 .seek-bar {
   background: linear-gradient(

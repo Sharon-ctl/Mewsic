@@ -15,6 +15,7 @@ import type {
   AppSettings,
   Notification,
   ShortcutMap,
+  AudioPreset,
 } from "../types";
 import { shuffleArray } from "../utils/helpers";
 
@@ -109,6 +110,10 @@ interface UISlice {
   playbackSpeed: number;
   bassBoost: number;
   volumeBoost: number;
+  eqGains: number[];
+  audioPresets: AudioPreset[];
+  activePresetId: string | null;
+  renamePresetId: string | null;
 
   setActiveView: (v: ViewId, skipHistory?: boolean) => void;
   setActivePlaylist: (id: string | null, skipHistory?: boolean) => void;
@@ -135,6 +140,7 @@ interface UISlice {
   setShowImportPlaylist: (v: boolean) => void;
   setShowCreatePlaylist: (v: boolean) => void;
   setShowCyberdeck: (v: boolean) => void;
+  setRenamePresetId: (id: string | null) => void;
   setDemoMode: (v: boolean) => void;
   setDevMode: (v: boolean) => void;
   setReverbEnabled: (v: boolean) => void;
@@ -142,6 +148,13 @@ interface UISlice {
   setPlaybackSpeed: (v: number) => void;
   setBassBoost: (v: number) => void;
   setVolumeBoost: (v: number) => void;
+  applyPreset: (id: string) => void;
+  savePreset: (name: string) => void;
+  deletePreset: (id: string) => void;
+  updatePresetName: (id: string, name: string) => void;
+  updatePresetSettings: (id: string) => void;
+  setEqGain: (index: number, gain: number) => void;
+  resetEq: () => void;
   resetAudioEffects: () => void;
   setShortcut: (action: keyof ShortcutMap, key: string, ctrl?: boolean, shift?: boolean, alt?: boolean) => void;
   resetShortcuts: () => void;
@@ -380,6 +393,7 @@ export const useStore = create<Store>()(
       showImportPlaylist: false,
       showCreatePlaylist: false,
       showCyberdeck: false,
+      renamePresetId: null,
       isDemoMode: false,
       isDevMode: false,
       reverbEnabled: false,
@@ -387,6 +401,20 @@ export const useStore = create<Store>()(
       playbackSpeed: 1.0,
       bassBoost: 0,
       volumeBoost: 1.0,
+      eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      audioPresets: [
+        {
+          id: "flat",
+          name: "Flat (Default)",
+          reverbEnabled: false,
+          reverbStrength: 0.5,
+          playbackSpeed: 1.0,
+          bassBoost: 0,
+          volumeBoost: 1.0,
+          eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        }
+      ],
+      activePresetId: "flat",
 
       setActiveView: (v, skipHistory = false) => {
         const { history, historyIndex } = get();
@@ -492,6 +520,7 @@ export const useStore = create<Store>()(
       setShowImportPlaylist: (v) => set({ showImportPlaylist: v }),
       setShowCreatePlaylist: (v) => set({ showCreatePlaylist: v }),
       setShowCyberdeck: (v) => set({ showCyberdeck: v }),
+      setRenamePresetId: (id) => set({ renamePresetId: id }),
       setDemoMode: (v) => set({ isDemoMode: v }),
       setDevMode: (v) => set({ isDevMode: v }),
       setReverbEnabled: (v) => set({ reverbEnabled: v }),
@@ -499,13 +528,68 @@ export const useStore = create<Store>()(
       setPlaybackSpeed: (v) => set({ playbackSpeed: Math.max(0.5, Math.min(v, 2.0)) }),
       setBassBoost: (v) => set({ bassBoost: v }),
       setVolumeBoost: (v) => set({ volumeBoost: v }),
+      applyPreset: (id) => set((s) => {
+        const preset = s.audioPresets.find(p => p.id === id);
+        if (!preset) return s;
+        return {
+          activePresetId: id,
+          reverbEnabled: preset.reverbEnabled,
+          reverbStrength: preset.reverbStrength,
+          playbackSpeed: preset.playbackSpeed,
+          bassBoost: preset.bassBoost,
+          volumeBoost: preset.volumeBoost,
+          eqGains: [...preset.eqGains],
+        };
+      }),
+      savePreset: (name) => set((s) => {
+        const id = `preset-${Date.now()}`;
+        const newPreset: AudioPreset = {
+          id,
+          name,
+          reverbEnabled: s.reverbEnabled,
+          reverbStrength: s.reverbStrength,
+          playbackSpeed: s.playbackSpeed,
+          bassBoost: s.bassBoost,
+          volumeBoost: s.volumeBoost,
+          eqGains: [...s.eqGains],
+        };
+        return {
+          audioPresets: [...s.audioPresets, newPreset],
+          activePresetId: id
+        };
+      }),
+      deletePreset: (id) => set((s) => ({
+        audioPresets: s.audioPresets.filter(p => p.id !== id),
+        activePresetId: s.activePresetId === id ? null : s.activePresetId
+      })),
+      updatePresetName: (id, name) => set((s) => ({
+        audioPresets: s.audioPresets.map(p => p.id === id ? { ...p, name } : p)
+      })),
+      updatePresetSettings: (id) => set((s) => ({
+        audioPresets: s.audioPresets.map(p => p.id === id ? {
+          ...p,
+          reverbEnabled: s.reverbEnabled,
+          reverbStrength: s.reverbStrength,
+          playbackSpeed: s.playbackSpeed,
+          bassBoost: s.bassBoost,
+          volumeBoost: s.volumeBoost,
+          eqGains: [...s.eqGains],
+        } : p)
+      })),
+      setEqGain: (index, gain) => set((s) => {
+        const next = [...(s.eqGains || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0])];
+        next[index] = gain;
+        return { eqGains: next };
+      }),
+      resetEq: () => set({ eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }),
       resetAudioEffects: () => set({ 
         volume: 0.8,
         reverbEnabled: false, 
-        reverbStrength: 0.5,
+        reverbStrength: 0.5, 
         playbackSpeed: 1.0, 
         bassBoost: 0, 
-        volumeBoost: 1.0 
+        volumeBoost: 1.0,
+        eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
       }),
       goBack: () => {
         const { history, historyIndex, setActiveView, setActivePlaylist } = get();
@@ -583,6 +667,9 @@ export const useStore = create<Store>()(
         playbackSpeed: s.playbackSpeed,
         bassBoost: s.bassBoost,
         volumeBoost: s.volumeBoost,
+        eqGains: s.eqGains,
+        audioPresets: s.audioPresets,
+        activePresetId: s.activePresetId,
       }),
     }
   )

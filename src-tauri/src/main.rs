@@ -143,14 +143,19 @@ impl DiscordState {
                         }
 
                         if let Some(c) = client.as_mut() {
+                            let large_text = if is_playing { 
+                                playlist_name.clone() 
+                            } else { 
+                                "PAUSED".to_string() 
+                            };
                             let details = title.clone();
                             let state_str = format!("by {}", artist);
-                            let small_text = if is_playing {
-                                "Playing".to_string()
+                            let (small_image, small_text) = if is_playing {
+                                ("icon".to_string(), "Playing".to_string())
                             } else {
                                 let mins = (current_time / 60.0).floor() as u32;
                                 let secs = (current_time % 60.0).floor() as u32;
-                                format!("Paused at {:02}:{:02}", mins, secs)
+                                ("pause".to_string(), format!("Paused at {:02}:{:02}", mins, secs))
                             };
 
                             let large_image = cover_url.unwrap_or_else(|| "cover".to_string());
@@ -161,8 +166,8 @@ impl DiscordState {
                                 .assets(
                                     activity::Assets::new()
                                         .large_image(&large_image)
-                                        .small_image("icon")
-                                        .large_text(&playlist_name)
+                                        .small_image(&small_image)
+                                        .large_text(&large_text)
                                         .small_text(&small_text),
                                 )
                                 .buttons(vec![activity::Button::new(
@@ -170,14 +175,20 @@ impl DiscordState {
                                     "https://xeoniii.github.io/Mewsic",
                                 )]);
 
-                            if is_playing {
-                                let start_time = now as i64 - current_time as i64;
-                                let mut timestamps = activity::Timestamps::new().start(start_time);
-                                if duration > 0.0 {
-                                    timestamps = timestamps.end(start_time + duration as i64);
-                                }
-                                activity = activity.timestamps(timestamps);
+                            let (start_time, bar_duration) = if is_playing {
+                                (now as i64 - current_time as i64, if duration > 0.0 { duration as i64 } else { 0 })
+                            } else {
+                                // When paused, start a fresh 1-hour counter from "now" 
+                                // to show how long we've been paused.
+                                (now as i64, 3600)
+                            };
+
+                            let mut timestamps = activity::Timestamps::new().start(start_time);
+                            if bar_duration > 0 {
+                                timestamps = timestamps.end(start_time + bar_duration);
                             }
+                            
+                            activity = activity.timestamps(timestamps);
 
                             if c.set_activity(activity).is_err() {
                                 client = None;

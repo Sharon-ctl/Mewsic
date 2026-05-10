@@ -6,7 +6,7 @@ import { useStore } from "../../store";
 
 export function AboutModal() {
   const { setShowAbout } = useStore();
-  const [appVersion, setAppVersion] = useState<string>("0.6.9");
+  const [appVersion, setAppVersion] = useState<string>("0.7.3");
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});
@@ -102,7 +102,7 @@ export function AboutModal() {
               Build {getBuildId()} • Linux
             </p>
             <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              11,014 Lines of code!
+              11,583 Lines of code!
             </p>
           </div>
         </div>

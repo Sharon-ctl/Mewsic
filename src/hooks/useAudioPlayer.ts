@@ -19,7 +19,8 @@ import {
   setVolumeBoost,
   setEngineVolume,
   setReverbStrength,
-  setLowEndMode
+  setLowEndMode,
+  setEqGain
 } from "../utils/audioEngine";
 
 export function useAudioPlayer() {
@@ -40,6 +41,7 @@ export function useAudioPlayer() {
     playbackSpeed,
     bassBoost,
     volumeBoost,
+    eqGains,
     lowEndMode,
   } = useStore(useShallow((s) => ({
     currentTrack: s.currentTrack,
@@ -58,6 +60,7 @@ export function useAudioPlayer() {
     playbackSpeed: s.playbackSpeed,
     bassBoost: s.bassBoost,
     volumeBoost: s.volumeBoost,
+    eqGains: s.eqGains,
     lowEndMode: s.lowEndMode,
   })));
 
@@ -131,6 +134,13 @@ export function useAudioPlayer() {
   useEffect(() => {
     setLowEndMode(lowEndMode);
   }, [lowEndMode]);
+
+  // Sync Equalizer
+  useEffect(() => {
+    if (Array.isArray(eqGains)) {
+      eqGains.forEach((gain, i) => setEqGain(i, gain));
+    }
+  }, [eqGains]);
   
   const currentCoverUrlRef = useRef<string | undefined>(undefined);
   const lastTrackIdRef = useRef<string | null>(null);
@@ -236,7 +246,7 @@ export function useAudioPlayer() {
   }, [currentTrack?.id, isPlaying, discordEnabled, systemNotifications]);
 
   useEffect(() => {
-    // Throttled time update — reduces store writes from ~15/s to 2/s
+    // Throttled time update — reduces store writes from ~15/s to 2/s 
     let lastTimeWrite = 0;
     const onTimeUpdate = () => {
       const now = performance.now();

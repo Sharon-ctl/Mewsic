@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
-import { 
-  RotateCcw, 
-  ArrowLeft, 
-  ArrowRight, 
+import {
+  RotateCcw,
+  ArrowLeft,
+  ArrowRight,
   Play,
-  Square, 
-  ExternalLink, 
+  Square,
+  ExternalLink,
   Info,
   Maximize2,
   Minimize2,
   SkipBack,
   SkipForward,
+  Save,
   Pencil,
   Trash2,
   PlusCircle,
@@ -21,7 +22,7 @@ import { toggleFullscreen } from "../../utils/tauriApi";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
-import type { Track } from "../../types";
+import type { Track, AudioPreset } from "../../types";
 
 interface ContextMenuItemProps {
   icon: React.ReactNode;
@@ -41,10 +42,10 @@ function ContextMenuItem({ icon, label, onClick, disabled, danger }: ContextMenu
       disabled={disabled}
       className={`
         w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
-        ${disabled 
-          ? "opacity-40 cursor-not-allowed text-text-muted" 
-          : danger 
-            ? "text-red-400 hover:bg-red-500/10 hover:scale-[1.02]" 
+        ${disabled
+          ? "opacity-40 cursor-not-allowed text-text-muted"
+          : danger
+            ? "text-red-400 hover:bg-red-500/10 hover:scale-[1.02]"
             : "text-text-secondary hover:bg-accent-muted hover:text-text-accent hover:scale-[1.02]"
         }
       `}
@@ -65,20 +66,24 @@ export function ContextMenu() {
   const [canCopy, setCanCopy] = useState(false);
   const [canPaste, setCanPaste] = useState(false);
   const [contextTrack, setContextTrack] = useState<Track | null>(null);
-  const [contextType, setContextType] = useState<"library" | "playlist" | null>(null);
+  const [contextPresetId, setContextPresetId] = useState<string | null>(null);
+  const [contextType, setContextType] = useState<"library" | "playlist" | "audio-preset" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { 
-    isPlaying, setIsPlaying, playNext, playPrev, requestSeek, currentTrack, 
-    setShowAbout, tracks, setAddTrack, setEditTrack, setDeleteTrack, 
-    activePlaylistId, playlists, goBack, goForward, historyIndex, history
+  const {
+    isPlaying, setIsPlaying, playNext, playPrev, requestSeek, currentTrack,
+    setShowAbout, tracks, setAddTrack, setEditTrack, setDeleteTrack,
+    activePlaylistId, playlists, goBack, goForward, historyIndex, history,
+    deletePreset, updatePresetSettings, setRenamePresetId, addNotification
   } = useStore(useShallow((s) => ({
     isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying, playNext: s.playNext,
     playPrev: s.playPrev, requestSeek: s.requestSeek, currentTrack: s.currentTrack,
     setShowAbout: s.setShowAbout, tracks: s.tracks, setAddTrack: s.setAddTrack,
     setEditTrack: s.setEditTrack, setDeleteTrack: s.setDeleteTrack,
     activePlaylistId: s.activePlaylistId, playlists: s.playlists,
-    goBack: s.goBack, goForward: s.goForward, historyIndex: s.historyIndex, history: s.history
+    goBack: s.goBack, goForward: s.goForward, historyIndex: s.historyIndex, history: s.history,
+    deletePreset: s.deletePreset, updatePresetSettings: s.updatePresetSettings, setRenamePresetId: s.setRenamePresetId,
+    addNotification: s.addNotification
   })));
 
   const canGoBack = historyIndex > 0;
@@ -89,11 +94,11 @@ export function ContextMenu() {
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
-      
+
       const selection = window.getSelection()?.toString();
       const target = e.target as HTMLElement;
       const isInput = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
-      
+
       const trackEl = target.closest("[data-track-id]");
       if (trackEl) {
         const trackId = trackEl.getAttribute("data-track-id");
@@ -103,7 +108,15 @@ export function ContextMenu() {
         setContextType(context);
       } else {
         setContextTrack(null);
-        setContextType(null);
+
+        const presetEl = target.closest("[data-preset-id]");
+        if (presetEl) {
+          setContextPresetId(presetEl.getAttribute("data-preset-id"));
+          setContextType("audio-preset");
+        } else {
+          setContextPresetId(null);
+          setContextType(null);
+        }
       }
 
       setCanCopy(!!selection || isInput);
@@ -217,33 +230,33 @@ export function ContextMenu() {
       <div className="flex flex-col">
         {/* Playback Controls Grid */}
         <div className="grid grid-cols-4 gap-1 mb-1 px-1">
-          <button 
-            onClick={playPrev} 
-            className="btn-icon p-2 hover:bg-accent-muted" 
+          <button
+            onClick={playPrev}
+            className="btn-icon p-2 hover:bg-accent-muted"
             title="Previous"
             disabled={!currentTrack}
           >
             <SkipBack size={16} />
           </button>
-          <button 
-            onClick={handleTogglePlay} 
-            className="btn-icon p-2 hover:bg-accent-muted" 
+          <button
+            onClick={handleTogglePlay}
+            className="btn-icon p-2 hover:bg-accent-muted"
             title={isPlaying ? "Stop" : "Play"}
             disabled={!currentTrack}
           >
             {isPlaying ? <Square size={16} /> : <Play size={16} />}
           </button>
-          <button 
-            onClick={playNext} 
-            className="btn-icon p-2 hover:bg-accent-muted" 
+          <button
+            onClick={playNext}
+            className="btn-icon p-2 hover:bg-accent-muted"
             title="Next"
             disabled={!currentTrack}
           >
             <SkipForward size={16} />
           </button>
-          <button 
-            onClick={handleRestart} 
-            className="btn-icon p-2 hover:bg-accent-muted" 
+          <button
+            onClick={handleRestart}
+            className="btn-icon p-2 hover:bg-accent-muted"
             title="Restart Song"
             disabled={!currentTrack}
           >
@@ -255,51 +268,78 @@ export function ContextMenu() {
 
         {contextTrack ? (
           <>
-            <ContextMenuItem 
-              icon={<Pencil size={16} />} 
-              label="Edit Metadata" 
-              onClick={() => { setEditTrack(contextTrack); setVisible(false); }} 
+            <ContextMenuItem
+              icon={<Pencil size={16} />}
+              label="Edit Metadata"
+              onClick={() => { setEditTrack(contextTrack); setVisible(false); }}
             />
             {contextType === "playlist" ? (
-              <ContextMenuItem 
-                icon={<MinusCircle size={16} />} 
-                label="Remove from Playlist" 
-                onClick={handleRemoveFromPlaylist} 
+              <ContextMenuItem
+                icon={<MinusCircle size={16} />}
+                label="Remove from Playlist"
+                onClick={handleRemoveFromPlaylist}
                 danger
               />
             ) : (
-              <ContextMenuItem 
-                icon={<PlusCircle size={16} />} 
-                label="Add to Playlist" 
-                onClick={() => { setAddTrack(contextTrack); setVisible(false); }} 
+              <ContextMenuItem
+                icon={<PlusCircle size={16} />}
+                label="Add to Playlist"
+                onClick={() => { setAddTrack(contextTrack); setVisible(false); }}
               />
             )}
-            <ContextMenuItem 
-              icon={<Share2 size={16} />} 
-              label="Recommend" 
-              onClick={handleRecommend} 
+            <ContextMenuItem
+              icon={<Share2 size={16} />}
+              label="Recommend"
+              onClick={handleRecommend}
             />
-            <ContextMenuItem 
-              icon={<Trash2 size={16} />} 
-              label="Delete from Disk" 
-              onClick={() => { setDeleteTrack(contextTrack); setVisible(false); }} 
+            <ContextMenuItem
+              icon={<Trash2 size={16} />}
+              label="Delete from Disk"
+              onClick={() => { setDeleteTrack(contextTrack); setVisible(false); }}
               danger
             />
+            <Divider />
+          </>
+        ) : contextType === "audio-preset" && contextPresetId ? (
+          <>
+            {contextPresetId !== "flat" && (
+              <ContextMenuItem
+                icon={<Pencil size={16} />}
+                label="Rename Preset"
+                onClick={() => { setRenamePresetId(contextPresetId); setVisible(false); }}
+              />
+            )}
+            <ContextMenuItem
+              icon={<Save size={16} />}
+              label="Save Current Settings"
+              onClick={() => { updatePresetSettings(contextPresetId); addNotification?.("Settings saved to preset", "success"); setVisible(false); }}
+            />
+            {contextPresetId !== "flat" && (
+              <>
+                <Divider />
+                <ContextMenuItem
+                  icon={<Trash2 size={16} />}
+                  label="Delete Preset"
+                  onClick={() => { deletePreset(contextPresetId); setVisible(false); }}
+                  danger
+                />
+              </>
+            )}
             <Divider />
           </>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-1 mb-1 px-1">
-              <button 
-                onClick={() => { goBack(); setVisible(false); }} 
+              <button
+                onClick={() => { goBack(); setVisible(false); }}
                 className={`nav-item justify-center gap-2 py-2 ${!canGoBack ? 'opacity-30 cursor-not-allowed' : ''}`}
                 title="Back"
                 disabled={!canGoBack}
               >
                 <ArrowLeft size={14} /> <span className="text-xs">Back</span>
               </button>
-              <button 
-                onClick={() => { goForward(); setVisible(false); }} 
+              <button
+                onClick={() => { goForward(); setVisible(false); }}
                 className={`nav-item justify-center gap-2 py-2 ${!canGoForward ? 'opacity-30 cursor-not-allowed' : ''}`}
                 title="Forward"
                 disabled={!canGoForward}
@@ -319,22 +359,22 @@ export function ContextMenu() {
           </>
         )}
 
-        <ContextMenuItem 
-          icon={<Maximize2 size={16} />} 
-          label="Toggle Fullscreen" 
-          onClick={handleToggleFullscreen} 
+        <ContextMenuItem
+          icon={<Maximize2 size={16} />}
+          label="Toggle Fullscreen"
+          onClick={handleToggleFullscreen}
         />
-        
+
         <Divider />
 
 
-        <ContextMenuItem 
-          icon={<Info size={16} />} 
-          label="About Mewsic" 
+        <ContextMenuItem
+          icon={<Info size={16} />}
+          label="About Mewsic"
           onClick={() => {
             setVisible(false);
             setShowAbout(true);
-          }} 
+          }}
         />
       </div>
     </div>
