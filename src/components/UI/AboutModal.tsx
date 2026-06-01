@@ -6,7 +6,7 @@ import { useStore } from "../../store";
 
 export function AboutModal() {
   const { setShowAbout } = useStore();
-  const [appVersion, setAppVersion] = useState<string>("0.7.3");
+  const [appVersion, setAppVersion] = useState<string>("0.8.0");
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});

@@ -51,6 +51,7 @@ const CoverArt = memo(function CoverArt({
         className={`w-full h-full object-cover ${className}`}
         onError={() => setImgError(true)}
         draggable={false}
+        loading="lazy"
       />
     );
   }
@@ -118,11 +119,10 @@ export const MusicCard = memo(function MusicCard({
   dragHandleProps,
   sourceId = null,
 }: MusicCardProps) {
-  const currentTrack = useStore(s => s.currentTrack);
+  const isActive = useStore(s => s.currentTrack?.id === track.id);
   const isPlaying = useStore(s => s.isPlaying);
   const setQueue = useStore(s => s.setQueue);
   const setIsPlaying = useStore(s => s.setIsPlaying);
-  const isActive = currentTrack?.id === track.id;
 
   const handlePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -262,7 +262,7 @@ export const MusicCard = memo(function MusicCard({
 
       </div>
 
-      <div className="p-3 space-y-0.5">
+      <div className="p-3 flex flex-col min-w-0 gap-0.5">
         <p
           className={`font-medium text-sm leading-tight truncate ${
             isActive ? "text-accent" : "text-text-primary"

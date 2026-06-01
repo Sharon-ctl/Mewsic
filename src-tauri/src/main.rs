@@ -40,6 +40,8 @@ use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
 use tiny_http::{Header, Response, Server};
 use url::Url;
+use sysinfo::{System};
+use mimalloc::MiMalloc;
 use walkdir::WalkDir;
 
 mod media_controls;
@@ -76,6 +78,12 @@ pub struct Playlist {
     pub created_at: u64,
     pub tracks: Option<Vec<Track>>,
     pub cover_art: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AppStats {
+    pub cpu: f32,
+    pub memory: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -211,6 +219,7 @@ impl DiscordState {
 
 pub struct AppState {
     pub tray_enabled: AtomicBool,
+    pub dev_mode_enabled: AtomicBool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -230,6 +239,10 @@ pub struct HarbourState {
 }
 
 static COVERS_CACHE_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+// Simple in-memory cache for recent thumbnail requests to avoid disk I/O and re-decoding
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 
 fn is_audio_file(path: &Path) -> bool {
     match path.extension().and_then(|e| e.to_str()) {
@@ -450,11 +463,18 @@ async fn scan_music_directory(dir_path: String) -> Result<ScanResult, String> {
     let entries: Vec<_> = WalkDir::new(&root)
         .follow_links(true)
         .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !name.starts_with('.') && name != "node_modules" && name != "vendor"
+        })
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .collect();
 
-    let (tracks, errors): (Vec<Track>, Vec<String>) = entries
+    let mut tracks = Vec::with_capacity(entries.len());
+    let mut errors = Vec::new();
+
+    let results: Vec<_> = entries
         .par_iter()
         .map(|entry| {
             let path = entry.path();
@@ -467,17 +487,16 @@ async fn scan_music_directory(dir_path: String) -> Result<ScanResult, String> {
                 (None, None)
             }
         })
-        .collect::<Vec<_>>()
-        .into_iter()
-        .fold((Vec::new(), Vec::new()), |(mut ts, mut es), (t, e)| {
-            if let Some(track) = t {
-                ts.push(track);
-            }
-            if let Some(err) = e {
-                es.push(err);
-            }
-            (ts, es)
-        });
+        .collect();
+
+    for (t, e) in results {
+        if let Some(track) = t {
+            tracks.push(track);
+        }
+        if let Some(err) = e {
+            errors.push(err);
+        }
+    }
 
     let mut tracks = tracks;
 
@@ -1338,6 +1357,15 @@ fn set_tray_enabled(
 }
 
 #[tauri::command]
+fn set_dev_mode(
+    state: tauri::State<AppState>,
+    enabled: bool,
+) -> Result<(), String> {
+    state.dev_mode_enabled.store(enabled, Ordering::Relaxed);
+    Ok(())
+}
+
+#[tauri::command]
 fn toggle_fullscreen(window: tauri::Window) -> Result<(), String> {
     let is_fullscreen = window.is_fullscreen().unwrap_or(false);
     window
@@ -1384,6 +1412,24 @@ fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
         let _ = window.hide();
     }
     Ok(())
+}
+
+fn get_process_pss(pid: sysinfo::Pid) -> u64 {
+    #[cfg(target_os = "linux")]
+    {
+        let path = format!("/proc/{}/smaps_rollup", pid);
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for line in content.lines() {
+                if line.starts_with("Pss:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if let Some(kb) = parts.get(1).and_then(|p| p.parse::<u64>().ok()) {
+                        return kb * 1024;
+                    }
+                }
+            }
+        }
+    }
+    0
 }
 
 fn start_asset_server(port: u16) {
@@ -1466,8 +1512,10 @@ fn handle_request(request: tiny_http::Request) {
 
     // Handle cover art extraction
     if is_thumb {
-        // Generate a cache key based on the file path hash and size
-        let cache_key = format!("{:x}_{}.jpg", hash_string(&final_path.to_string_lossy()), requested_size);
+        let path_hash = hash_string(&final_path.to_string_lossy());
+        
+        // 1. Check disk cache
+        let cache_key = format!("{:x}_{}.jpg", path_hash, requested_size);
         let mut cached_path = None;
         if let Ok(lock) = COVERS_CACHE_DIR.lock() {
             if let Some(dir) = &*lock {
@@ -1475,20 +1523,13 @@ fn handle_request(request: tiny_http::Request) {
             }
         }
 
-        // Return cached cover if available
         if let Some(ref cp) = cached_path {
             if cp.exists() {
                 if let Ok(data) = fs::read(cp) {
                     let mut response = Response::from_data(data);
-                    response.add_header(
-                        Header::from_bytes(&b"Content-Type"[..], b"image/jpeg").unwrap(),
-                    );
-                    response.add_header(
-                        Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
-                    );
-                    response.add_header(
-                        Header::from_bytes(&b"Cache-Control"[..], &b"public, max-age=604800, immutable"[..]).unwrap(),
-                    );
+                    response.add_header(Header::from_bytes(&b"Content-Type"[..], b"image/jpeg").unwrap());
+                    response.add_header(Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap());
+                    response.add_header(Header::from_bytes(&b"Cache-Control"[..], &b"public, max-age=604800, immutable"[..]).unwrap());
                     let _ = request.respond(response);
                     return;
                 }
@@ -1509,9 +1550,8 @@ fn handle_request(request: tiny_http::Request) {
                         if let Ok(img) = reader.decode() {
                             let resized = img.thumbnail(requested_size, requested_size);
                             let mut buffer = Cursor::new(Vec::new());
-                            if resized
-                                .write_to(&mut buffer, image::ImageFormat::Jpeg)
-                                .is_ok()
+                            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 60);
+                            if encoder.encode_image(&resized.to_rgb8()).is_ok()
                             {
                                 let compressed_data = buffer.into_inner();
 
@@ -1746,6 +1786,20 @@ fn main() {
         // Disable WebKitGTK's native MPRIS integration to prevent duplicate entries
         std::env::set_var("WEBKIT_DISABLE_MPRIS", "1");
         std::env::set_var("WEBKIT_DISABLE_MPRIS_PLUGIN", "1");
+        
+        // Memory-saving tweaks for WebKitGTK
+        std::env::set_var("WEBKIT_FORCE_SANDBOX", "0");
+        std::env::set_var("G_SLICE", "always-malloc");
+        std::env::set_var("MALLOC_CHECK_", "0");
+        
+        // Aggrersive memory pressure settings (reclaim memory faster)
+        // format: "threshold_mb,threshold_percentage,kill_threshold_mb"
+        std::env::set_var("WEBKIT_MEMORY_PRESSURE_SETTINGS", "128,15,512");
+
+        // Tune PulseAudio / PipeWire latency buffer (in milliseconds)
+        // High CPU load can cause audio underruns/crackling if the buffer is too small.
+        // A larger buffer (200ms) prevents static/stuttering under heavy CPU utilization.
+        std::env::set_var("PULSE_LATENCY_MSEC", "200");
     }
 
 
@@ -1759,6 +1813,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
@@ -1766,6 +1821,7 @@ fn main() {
         .manage(DiscordState::new())
         .manage(AppState {
             tray_enabled: AtomicBool::new(true),
+            dev_mode_enabled: AtomicBool::new(false),
         })
         .manage(HarbourState {
             token: Mutex::new(None),
@@ -1794,6 +1850,7 @@ fn main() {
                         app.exit(0);
                     } else if event.id().as_ref() == "show" {
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
@@ -1804,6 +1861,7 @@ fn main() {
                         if button == MouseButton::Left {
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.unminimize();
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             }
@@ -1818,6 +1876,63 @@ fn main() {
             // Force the window icon for the main window (helps with dock icons on some Linux DEs)
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_icon(icon);
+            }
+
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    let mut sys = System::new_all();
+                    let pid = sysinfo::get_current_pid().unwrap();
+                    
+                    loop {
+                        if !handle.state::<AppState>().dev_mode_enabled.load(Ordering::Relaxed) {
+                            std::thread::sleep(std::time::Duration::from_millis(1000));
+                            continue;
+                        }
+
+                        // Refresh only processes and CPU statistics, avoiding heavy system-wide scans of disks/networks
+                        sys.refresh_processes();
+                        sys.refresh_cpu_usage();
+                        
+                        let mut total_cpu = 0.0;
+                        let mut total_mem = 0;
+                        
+                        // Sum usage for main process and its children
+                        let core_count = sys.cpus().len() as f32;
+                        if let Some(main_p) = sys.process(pid) {
+                            total_cpu += main_p.cpu_usage();
+                            
+                            // On Linux, use PSS for accuracy, otherwise fallback to RSS
+                            let main_mem = get_process_pss(pid);
+                            total_mem = if main_mem > 0 { main_mem } else { main_p.memory() };
+                            
+                            for (p_pid, process) in sys.processes() {
+                                let name = process.name().to_lowercase();
+                                let is_webview = name.contains("webkit") || name.contains("web content");
+                                
+                                if *p_pid != pid && is_webview && process.parent() == Some(pid) {
+                                    total_cpu += process.cpu_usage();
+                                    
+                                    let child_mem = get_process_pss(*p_pid);
+                                    total_mem += if child_mem > 0 { child_mem } else { process.memory() };
+                                }
+                            }
+                        }
+                        
+                        // If it's still reporting massive numbers, it's likely KB units
+                        // but sysinfo 0.30 claims bytes. We'll stick to bytes for now.
+
+                        // Normalize CPU by core count to get 0-100%
+                        let normalized_cpu = if core_count > 0.0 { total_cpu / core_count } else { total_cpu };
+
+                        let _ = handle.emit("app-stats", AppStats {
+                            cpu: normalized_cpu,
+                            memory: total_mem,
+                        });
+                        
+                        std::thread::sleep(std::time::Duration::from_millis(1000));
+                    }
+                });
             }
 
             Ok(())
@@ -1837,6 +1952,7 @@ fn main() {
             update_discord_rpc,
             clear_discord_rpc,
             set_tray_enabled,
+            set_dev_mode,
             hide_window,
             toggle_fullscreen,
             import_files,

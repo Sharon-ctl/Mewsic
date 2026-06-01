@@ -54,14 +54,38 @@ const ListContent = memo(function ListContent({
     [tracks, onAddToPlaylist, onEditMetadata, onDelete]
   );
 
+  const listRef = useRef<any>(null);
+  const isRestoringRef = useRef(true);
+  const hasRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+    if (listRef.current && tracks.length > 0 && height > 0) {
+      const saved = useStore.getState().libraryListScrollOffset;
+      listRef.current.scrollTo(saved);
+      hasRestoredRef.current = true;
+      setTimeout(() => {
+        isRestoringRef.current = false;
+      }, 100);
+    }
+  }, [tracks.length, height]);
+
+  const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number }) => {
+    if (isRestoringRef.current) return;
+    useStore.getState().setLibraryListScrollOffset(scrollOffset);
+  }, []);
+
+  const VListElement = VList as any;
   return (
-    <VList
+    <VListElement
+      ref={listRef}
       style={{ height }}
       rowComponent={RowComponent as any}
       rowCount={tracks.length}
       rowHeight={LIST_ITEM_HEIGHT}
       rowProps={{} as any}
       overscanCount={5}
+      onScroll={handleScroll as any}
     />
   );
 });
@@ -73,48 +97,91 @@ const GridContent = memo(function GridContent({
   onAddToPlaylist,
   onEditMetadata,
   onDelete,
+  width,
+  height,
 }: {
   tracks: Track[];
   onAddToPlaylist: (track: Track) => void;
   onEditMetadata: (track: Track) => void;
   onDelete: (track: Track) => void;
+  width: number;
+  height: number;
 }) {
-  const [visibleCount, setVisibleCount] = useState(GRID_PAGE_SIZE);
-  const visible = tracks.slice(0, visibleCount);
+  const GRID_GAP = 16;
+  const MIN_CARD_WIDTH = 180;
+  
+  // Calculate columns based on available width (minus padding)
+  const availableWidth = width - 64; // px-8 on both sides
+  const columns = Math.max(1, Math.floor((availableWidth + GRID_GAP) / (MIN_CARD_WIDTH + GRID_GAP)));
+  const rowCount = Math.ceil(tracks.length / columns);
+  const rowHeight = 280; // Approximate height for grid card + padding
 
-  // Reset when tracks change (search/sort)
-  useEffect(() => {
-    setVisibleCount(GRID_PAGE_SIZE);
-  }, [tracks]);
+  const RowComponent = useCallback(
+    (props: { index: number; style: React.CSSProperties }) => {
+      const startIndex = props.index * columns;
+      const rowTracks = tracks.slice(startIndex, startIndex + columns);
 
-  return (
-    <>
-      <div className="music-grid">
-        {visible.map((track, i) => (
-          <MusicCard
-            key={track.id}
-            track={track}
-            allTracks={tracks}
-            trackIndex={i}
-            sourceId="library"
-            viewMode="grid"
-            onAddToPlaylist={onAddToPlaylist}
-            onEditMetadata={onEditMetadata}
-            onDelete={onDelete}
-          />
-        ))}
-      </div>
-      {visibleCount < tracks.length && (
-        <div className="flex justify-center py-6">
-          <button
-            onClick={() => setVisibleCount((c) => c + GRID_PAGE_SIZE)}
-            className="btn-accent px-6 py-2 text-sm"
+      return (
+        <div style={props.style} className="px-8 py-2">
+          <div 
+            className="grid gap-4" 
+            style={{ 
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` 
+            }}
           >
-            Show more ({tracks.length - visibleCount} remaining)
-          </button>
+            {rowTracks.map((track, i) => (
+              <MusicCard
+                key={track.id}
+                track={track}
+                allTracks={tracks}
+                trackIndex={startIndex + i}
+                sourceId="library"
+                viewMode="grid"
+                onAddToPlaylist={onAddToPlaylist}
+                onEditMetadata={onEditMetadata}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
         </div>
-      )}
-    </>
+      );
+    },
+    [tracks, columns, onAddToPlaylist, onEditMetadata, onDelete]
+  );
+
+  const listRef = useRef<any>(null);
+  const isRestoringRef = useRef(true);
+  const hasRestoredRef = useRef(false);
+
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+    if (listRef.current && tracks.length > 0 && height > 0) {
+      const saved = useStore.getState().libraryGridScrollOffset;
+      listRef.current.scrollTo(saved);
+      hasRestoredRef.current = true;
+      setTimeout(() => {
+        isRestoringRef.current = false;
+      }, 100);
+    }
+  }, [tracks.length, height]);
+
+  const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number }) => {
+    if (isRestoringRef.current) return;
+    useStore.getState().setLibraryGridScrollOffset(scrollOffset);
+  }, []);
+
+  const VListElement = VList as any;
+  return (
+    <VListElement
+      ref={listRef}
+      style={{ height, width: "100%" }}
+      rowComponent={RowComponent as any}
+      rowCount={rowCount}
+      rowHeight={rowHeight}
+      rowProps={{} as any}
+      overscanCount={2}
+      onScroll={handleScroll as any}
+    />
   );
 });
 
@@ -151,6 +218,7 @@ export function LibraryView() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [listHeight, setListHeight] = useState(600);
+  const [listWidth, setListWidth] = useState(800);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -169,10 +237,12 @@ export function LibraryView() {
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setListHeight(entry.contentRect.height);
+        setListWidth(entry.contentRect.width);
       }
     });
     ro.observe(el);
     setListHeight(el.clientHeight);
+    setListWidth(el.clientWidth);
     return () => ro.disconnect();
   }, []);
 
@@ -318,7 +388,7 @@ export function LibraryView() {
         {/* Import */}
         <button
           onClick={handleImport}
-          className="btn-accent h-10 px-4"
+          className="btn-accent h-10 px-4 flex-shrink-0"
           title="Import music to library"
         >
           <Plus size={15} />
@@ -336,7 +406,7 @@ export function LibraryView() {
       </div>
 
       {/* Content */}
-      <div ref={contentRef} className="flex-1 overflow-hidden px-6 pb-4">
+      <div ref={contentRef} className="flex-1 overflow-hidden">
         {filtered.length === 0 ? (
           <div className="empty-state pt-16">
             <Music2 size={40} className="text-text-muted" />
@@ -348,10 +418,19 @@ export function LibraryView() {
             </div>
           </div>
         ) : libraryViewMode === "list" ? (
-          <ListContent tracks={filtered} onAddToPlaylist={handleAddToPlaylist} onEditMetadata={handleEditMetadata} onDelete={handleDeleteTrack} height={listHeight} />
+          <div className="px-8 pb-4 h-full">
+            <ListContent tracks={filtered} onAddToPlaylist={handleAddToPlaylist} onEditMetadata={handleEditMetadata} onDelete={handleDeleteTrack} height={listHeight} />
+          </div>
         ) : (
-          <div className="overflow-y-auto h-full">
-            <GridContent tracks={filtered} onAddToPlaylist={handleAddToPlaylist} onEditMetadata={handleEditMetadata} onDelete={handleDeleteTrack} />
+          <div className="h-full">
+            <GridContent 
+              tracks={filtered} 
+              onAddToPlaylist={handleAddToPlaylist} 
+              onEditMetadata={handleEditMetadata} 
+              onDelete={handleDeleteTrack} 
+              width={listWidth}
+              height={listHeight}
+            />
           </div>
         )}
       </div>

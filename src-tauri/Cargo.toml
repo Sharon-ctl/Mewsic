@@ -1,6 +1,6 @@
 [package]
 name = "mewsic"
-version = "0.7.3"
+version = "0.8.0"
 description = "Mewsic — A modern offline music player"
 authors = ["xeoniii <https://github.com/xeoniii>"]
 license = "GPL-3.0-only"
@@ -41,6 +41,15 @@ tauri-plugin-process = "2"
 souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
 raw-window-handle = "0.6"
 tauri-plugin-updater = "2"
+sysinfo = "0.30"
+mimalloc = { version = "0.1", default-features = false }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort" # Enforce smaller binary and slightly faster performance
+codegen-units = 1 # Better optimizations at the cost of compile time
+lto = true # Link Time Optimization for maximum performance
+opt-level = 3 # Maximize speed
+strip = true # Remove debug symbols for smaller binary size

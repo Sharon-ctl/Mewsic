@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
   Play, Shuffle, Trash2, Music2, ListMusic, MinusCircle, PlusCircle, Pencil, Share2, Download,
 } from "lucide-react";
@@ -70,6 +70,35 @@ export function PlaylistView() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isRestoringRef = useRef(false);
+
+  useEffect(() => {
+    isRestoringRef.current = true;
+    const restoreScroll = () => {
+      if (containerRef.current && activePlaylistId) {
+        const saved = useStore.getState().playlistScrollOffsets[activePlaylistId] || 0;
+        containerRef.current.scrollTop = saved;
+      }
+      setTimeout(() => {
+        isRestoringRef.current = false;
+      }, 50);
+    };
+
+    restoreScroll();
+    const frame = requestAnimationFrame(restoreScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [activePlaylistId]);
+
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    if (isRestoringRef.current) return;
+    if (activePlaylistId) {
+      useStore.getState().setPlaylistScrollOffset(activePlaylistId, e.currentTarget.scrollTop);
+    }
+  }, [activePlaylistId]);
 
   const playlist = useMemo(
     () => displayPlaylists.find((p) => p.id === activePlaylistId),
@@ -240,7 +269,11 @@ export function PlaylistView() {
       </div>
 
       {/* Track list */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div 
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-6 py-4"
+      >
         {playlistTracks.length === 0 ? (
           <div className="empty-state pt-16">
             <Music2 size={40} className="text-text-muted" />

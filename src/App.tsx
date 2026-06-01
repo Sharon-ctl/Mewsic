@@ -29,6 +29,7 @@ import { ConfirmationModal } from "./components/UI/ConfirmationModal";
 import { deleteTrack } from "./utils/tauriApi";
 import { TitleBar } from "./components/UI/TitleBar";
 import { Cyberdeck } from "./components/UI/Cyberdeck";
+import { DevOverlay } from "./components/UI/DevOverlay";
 function ViewRouter() {
   const { activeView } = useStore(useShallow((s) => ({ activeView: s.activeView })));
 
@@ -136,9 +137,6 @@ export default function App() {
       updateFullscreen();
     });
 
-    // Failsafe polling for fullscreen state
-    const pollInterval = setInterval(updateFullscreen, 250);
-
     // DOM resize listener
     window.addEventListener("resize", updateFullscreen);
 
@@ -146,7 +144,6 @@ export default function App() {
       unlistenEvent.then((fn) => fn());
       unlistenResize.then((fn) => fn());
       window.removeEventListener("resize", updateFullscreen);
-      clearInterval(pollInterval);
     };
   }, []);
 
@@ -158,6 +155,9 @@ export default function App() {
     async function bootstrap() {
       // Sync initial tray state
       setTrayEnabled(useStore.getState().trayEnabled).catch(() => {});
+
+      // Sync initial dev mode state with Rust backend to sleep telemetry when not in use
+      invoke("set_dev_mode", { enabled: useStore.getState().isDevMode }).catch(() => {});
 
       if (!musicDir || !playlistsDir || !coversDir) {
         const paths = await getAppPaths();
@@ -261,6 +261,12 @@ export default function App() {
       } else if (e.ctrlKey && e.shiftKey && e.code === "Backquote") {
         e.preventDefault();
         setShowCyberdeck(!showCyberdeck);
+      } else if (e.ctrlKey && e.shiftKey && e.code === "KeyD") {
+        e.preventDefault();
+        const { isDevMode, setDevMode, addNotification } = useStore.getState();
+        const newState = !isDevMode;
+        setDevMode(newState);
+        addNotification(`Developer Mode: ${newState ? 'ON' : 'OFF'}`, newState ? "success" : "info");
       } else if (e.key === "Escape") {
         // Close any open modals
         if (showAbout) setShowAbout(false);
@@ -302,6 +308,7 @@ export default function App() {
         background: "var(--surface-base)",
       }}
     >
+      <DevOverlay />
       <TitleBar />
       {/* Main workspace */}
       <div className="flex flex-1 min-h-0">
@@ -310,7 +317,7 @@ export default function App() {
 
         {/* Content pane */}
         {/* Content pane */}
-        <main className="flex-1 min-w-0 overflow-hidden relative -ml-[1px]">
+        <main className="flex-1 min-w-0 overflow-hidden relative">
           <ViewRouter />
         </main>
       </div>

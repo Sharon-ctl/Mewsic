@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Mewsic",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "identifier": "dev.xeoniii.mewsic",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -38,7 +38,7 @@
         "depends": [
           "webkit2gtk4.1",
           "gtk3",
-          "libayatana-appindicator3-1",
+          "libappindicator-gtk3",
           "librsvg2"
         ]
       }

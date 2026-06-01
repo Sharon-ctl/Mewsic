@@ -222,11 +222,11 @@ body {
 
 .glass-heavy {
   background: var(--surface-glass-heavy);
-  backdrop-filter: blur(12px) saturate(1.6);
-  -webkit-backdrop-filter: blur(12px) saturate(1.6);
+  /* Optimization: Use simpler blur or semi-opaque fallback for performance */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-glass);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.15), inset 0 1px 0 var(--border-subtle);
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
 }
 
 /* Accent fill */
@@ -366,28 +366,25 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
   transition: 
-    box-shadow 0.25s ease,
-    border-color 0.2s ease,
-    background 0.3s ease;
+    box-shadow 0.1s ease,
+    border-color 0.1s ease,
+    background 0.2s ease;
   cursor: pointer;
   position: relative;
+  /* Optimization: Force GPU layer and limit repaint scope */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: layout style paint;
 }
 
 .music-card:hover {
-  border-color: var(--accent);
-  box-shadow: 
-    0 4px 20px rgba(0,0,0,0.3),
-    0 0 15px var(--accent-glow);
-  z-index: 10;
+  background: var(--surface-overlay);
+  border-color: var(--border-glass);
 }
 
 .music-card.playing {
   border-color: var(--accent);
-  box-shadow: 
-    0 0 0 1px var(--accent), 
-    0 20px 40px rgba(0,0,0,0.2),
-    0 0 30px var(--accent-glow);
-  background: linear-gradient(to bottom, var(--surface-raised), var(--accent-muted));
+  background: var(--accent-muted);
 }
 
 .btn-icon {

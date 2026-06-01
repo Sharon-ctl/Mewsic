@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   Track,
   Playlist,
@@ -114,8 +115,14 @@ interface UISlice {
   audioPresets: AudioPreset[];
   activePresetId: string | null;
   renamePresetId: string | null;
+  libraryListScrollOffset: number;
+  libraryGridScrollOffset: number;
+  playlistScrollOffsets: Record<string, number>;
 
   setActiveView: (v: ViewId, skipHistory?: boolean) => void;
+  setLibraryListScrollOffset: (offset: number) => void;
+  setLibraryGridScrollOffset: (offset: number) => void;
+  setPlaylistScrollOffset: (playlistId: string, offset: number) => void;
   setActivePlaylist: (id: string | null, skipHistory?: boolean) => void;
   setSearchQuery: (q: string) => void;
   setAccentColor: (c: AccentPreset) => void;
@@ -415,6 +422,9 @@ export const useStore = create<Store>()(
         }
       ],
       activePresetId: "flat",
+      libraryListScrollOffset: 0,
+      libraryGridScrollOffset: 0,
+      playlistScrollOffsets: {},
 
       setActiveView: (v, skipHistory = false) => {
         const { history, historyIndex } = get();
@@ -512,6 +522,11 @@ export const useStore = create<Store>()(
         }
       },
       setLibraryViewMode: (m) => set({ libraryViewMode: m }),
+      setLibraryListScrollOffset: (offset) => set({ libraryListScrollOffset: offset }),
+      setLibraryGridScrollOffset: (offset) => set({ libraryGridScrollOffset: offset }),
+      setPlaylistScrollOffset: (playlistId, offset) => set((s) => ({
+        playlistScrollOffsets: { ...s.playlistScrollOffsets, [playlistId]: offset }
+      })),
       setTheme: (t) => set({ theme: t }),
       setShowAbout: (v) => set({ showAbout: v }),
       setEditTrack: (t) => set({ editTrack: t }),
@@ -522,7 +537,10 @@ export const useStore = create<Store>()(
       setShowCyberdeck: (v) => set({ showCyberdeck: v }),
       setRenamePresetId: (id) => set({ renamePresetId: id }),
       setDemoMode: (v) => set({ isDemoMode: v }),
-      setDevMode: (v) => set({ isDevMode: v }),
+      setDevMode: (v) => {
+        invoke("set_dev_mode", { enabled: v }).catch(() => {});
+        set({ isDevMode: v });
+      },
       setReverbEnabled: (v) => set({ reverbEnabled: v }),
       setReverbStrength: (v) => set({ reverbStrength: v }),
       setPlaybackSpeed: (v) => set({ playbackSpeed: Math.max(0.5, Math.min(v, 2.0)) }),
@@ -670,6 +688,9 @@ export const useStore = create<Store>()(
         eqGains: s.eqGains,
         audioPresets: s.audioPresets,
         activePresetId: s.activePresetId,
+        libraryListScrollOffset: s.libraryListScrollOffset,
+        libraryGridScrollOffset: s.libraryGridScrollOffset,
+        playlistScrollOffsets: s.playlistScrollOffsets,
       }),
     }
   )
