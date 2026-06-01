@@ -42,6 +42,9 @@
           "librsvg2"
         ]
       }
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.0"
     }
   },
   "app": {
