@@ -126,19 +126,19 @@ export function AudioView() {
   return (
     <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page">
       {/* Header */}
-      <header className="p-6 flex items-center justify-between border-b border-border-subtle bg-surface-base/50 backdrop-blur-md sticky top-0 z-10">
+      <header className="p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-subtle bg-surface-base/50 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-accent">
+          <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-accent flex-shrink-0">
             <AudioWaveform size={24} />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Mewsic Audio Engine</h1>
-            <p className="text-sm text-text-muted">v1.06 | Designed for high quality audio.</p>
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">Mewsic Audio Engine</h1>
+            <p className="text-xs md:text-sm text-text-muted truncate">v1.06 | Designed for high quality audio.</p>
           </div>
         </div>
         <button
           onClick={resetAudioEffects}
-          className="px-4 py-2 rounded-xl bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-red-500 transition-all active:scale-95"
+          className="px-4 py-2 rounded-xl bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 text-[10px] font-black uppercase tracking-widest text-text-muted hover:text-red-500 transition-all active:scale-95 w-full sm:w-auto flex-shrink-0"
         >
           Reset Engine
         </button>
@@ -263,18 +263,18 @@ export function AudioView() {
             </div>
 
             <div className="relative z-10">
-              <div className="flex items-center justify-between mb-10">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                  <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent flex-shrink-0">
                     <Volume2 size={28} />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold tracking-tight">Volume</h2>
-                    <p className="text-xs text-text-muted uppercase tracking-widest font-medium">primary gain controller</p>
+                    <p className="text-[10px] sm:text-xs text-text-muted uppercase tracking-widest font-medium">primary gain controller</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-5xl font-black text-accent tracking-tighter tabular-nums leading-none">
+                <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-start gap-2 border-t border-white/5 sm:border-0 pt-4 sm:pt-0">
+                  <div className="text-4xl sm:text-5xl font-black text-accent tracking-tighter tabular-nums leading-none">
                     {Math.round(volume * 100)}%
                   </div>
                   <button
@@ -320,22 +320,22 @@ export function AudioView() {
             {/* Reverb Card */}
             <div className="glass rounded-[2rem] p-8 border border-border-subtle flex flex-col group hover:border-accent/20 transition-all shadow-xl">
               <div className="flex justify-between items-start mb-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent flex-shrink-0">
                     <Zap size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base">Reverberation</h3>
-                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium">software reverb</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base truncate">Reverberation</h3>
+                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium truncate">software reverb</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-shrink-0 ml-2">
                   <button
                     onClick={() => {
                       setReverbEnabled(false);
                       setReverbStrength(0.5);
                     }}
-                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90"
+                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90 flex-shrink-0"
                   >
                     <RotateCcw size={12} />
                   </button>
@@ -375,22 +375,22 @@ export function AudioView() {
             {/* Bass Card */}
             <div className="glass rounded-[2rem] p-8 border border-border-subtle space-y-8 group hover:border-accent/20 transition-all shadow-xl">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent flex-shrink-0">
                     <Radio size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base">Bass Boost</h3>
-                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium">higher bass</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base truncate">Bass Boost</h3>
+                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium truncate">higher bass</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-2xl font-black text-accent tabular-nums leading-none">+{bassBoost}dB</span>
+                <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                  <span className="text-xl font-black text-accent tabular-nums leading-none">+{bassBoost}dB</span>
                   <button
                     onClick={() => setBassBoost(0)}
-                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90"
+                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90 flex-shrink-0"
                   >
-                    <RotateCcw size={10} />
+                    <RotateCcw size={12} />
                   </button>
                 </div>
               </div>
@@ -406,22 +406,22 @@ export function AudioView() {
             {/* Speed Card */}
             <div className="glass rounded-[2rem] p-8 border border-border-subtle space-y-8 group hover:border-accent/20 transition-all shadow-xl">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent flex-shrink-0">
                     <Sliders size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base">Playback Speed</h3>
-                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium">Time-Stretching</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base truncate">Playback Speed</h3>
+                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium truncate">Time-Stretching</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-2xl font-black text-accent tabular-nums leading-none">{playbackSpeed.toFixed(2)}x</span>
+                <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                  <span className="text-xl font-black text-accent tabular-nums leading-none">{playbackSpeed.toFixed(2)}x</span>
                   <button
                     onClick={() => setPlaybackSpeed(1.0)}
-                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90"
+                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90 flex-shrink-0"
                   >
-                    <RotateCcw size={10} />
+                    <RotateCcw size={12} />
                   </button>
                 </div>
               </div>
@@ -453,22 +453,22 @@ export function AudioView() {
             {/* Volume Booster Card */}
             <div className="glass rounded-[2rem] p-8 border border-border-subtle space-y-8 group hover:border-accent/20 transition-all shadow-xl">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-accent/5 flex items-center justify-center text-accent flex-shrink-0">
                     <Headphones size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base">Volume Booster</h3>
-                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium">main-gain multiplier</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base truncate">Volume Booster</h3>
+                    <p className="text-[10px] text-text-muted uppercase tracking-widest font-medium truncate">main-gain multiplier</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-2xl font-black text-accent tabular-nums leading-none">{(volumeBoost * 100).toFixed(0)}%</span>
+                <div className="flex items-center gap-3 flex-shrink-0 ml-2">
+                  <span className="text-xl font-black text-accent tabular-nums leading-none">{(volumeBoost * 100).toFixed(0)}%</span>
                   <button
                     onClick={() => setVolumeBoost(1.0)}
-                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90"
+                    className="p-1.5 rounded-lg bg-surface-raised border border-border-subtle text-text-muted hover:text-accent hover:border-accent transition-all active:scale-90 flex-shrink-0"
                   >
-                    <RotateCcw size={10} />
+                    <RotateCcw size={12} />
                   </button>
                 </div>
               </div>
@@ -495,64 +495,45 @@ export function AudioView() {
                 </div>
                 <div>
                   <h3 className="font-bold text-xl tracking-tight">Parametric Equalizer</h3>
-                  <p className={`text-[10px] uppercase tracking-[0.2em] font-black ${isDevMode ? 'text-accent' : 'text-text-muted'}`}>
-                    {isDevMode ? 'Currently in private testing' : 'DSP Module Restricted'}
+                  <p className={`text-[10px] uppercase tracking-[0.2em] font-black text-accent`}>
+                    10-Band Graphic EQ
                   </p>
                 </div>
               </div>
-              {isDevMode && (
-                <button
-                  onClick={resetEq}
-                  className="px-4 py-2 rounded-xl bg-white/5 hover:bg-accent/10 border border-white/5 hover:border-accent/30 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
-                >
-                  Reset to Flat
-                </button>
-              )}
+              <button
+                onClick={resetEq}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-accent/10 border border-white/5 hover:border-accent/30 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95"
+              >
+                Reset to Flat
+              </button>
             </div>
 
-            <div className={`flex flex-col items-center justify-between h-52 border-2 ${isDevMode ? 'border-transparent' : 'border-dashed border-white/5'} rounded-2xl bg-white/[0.02] p-6 text-center transition-all`}>
-              {isDevMode ? (
-                <div className="w-full grid grid-cols-5 md:grid-cols-10 gap-4 h-full">
-                  {["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"].map((freq, i) => (
-                    <div key={freq} className="flex flex-col items-center gap-4">
-                      <div className="flex-1 relative w-full flex justify-center">
-                        <div className="absolute inset-y-0 w-px bg-white/5" />
-                        <input
-                          type="range"
-                          min="-12"
-                          max="12"
-                          step="0.5"
-                          value={eqGains[i] ?? 0}
-                          onChange={(e) => setEqGain(i, parseFloat(e.target.value))}
-                          className="vertical-range h-full accent-accent cursor-ns-resize"
-                          style={{ WebkitAppearance: 'slider-vertical' } as React.CSSProperties}
-                        />
-                      </div>
-                      <div className="text-center">
-                        <p className={`text-[10px] font-bold tabular-nums ${(eqGains[i] ?? 0) !== 0 ? 'text-accent' : 'text-text-primary'}`}>
-                          {(eqGains[i] ?? 0) > 0 ? `+${eqGains[i]}` : (eqGains[i] ?? 0)}
-                        </p>
-                        <p className="text-[9px] text-text-muted font-black uppercase tracking-tighter opacity-60">{freq}</p>
-                      </div>
+            <div className={`flex flex-col items-center justify-between h-52 border-2 border-transparent rounded-2xl bg-white/[0.02] p-6 text-center transition-all`}>
+              <div className="w-full grid grid-cols-5 md:grid-cols-10 gap-4 h-full">
+                {["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"].map((freq, i) => (
+                  <div key={freq} className="flex flex-col items-center gap-4">
+                    <div className="flex-1 relative w-full flex justify-center">
+                      <div className="absolute inset-y-0 w-px bg-white/5" />
+                      <input
+                        type="range"
+                        min="-12"
+                        max="12"
+                        step="0.5"
+                        value={eqGains[i] ?? 0}
+                        onChange={(e) => setEqGain(i, parseFloat(e.target.value))}
+                        className="vertical-range h-full accent-accent cursor-ns-resize"
+                        style={{ WebkitAppearance: 'slider-vertical' } as React.CSSProperties}
+                      />
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center space-y-2">
-                  <p className="text-xs text-text-muted font-bold uppercase tracking-widest">Equalizer Interface Container</p>
-                  <p className="text-[9px] text-text-muted/50 max-w-xs leading-relaxed">
-                    This module is currently restricted to authorized testers.
-                  </p>
-                </div>
-              )}
-
-              {!isDevMode && (
-                <div className="w-full grid grid-cols-10 gap-2 mt-4 opacity-30">
-                  {["32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"].map(f => (
-                    <div key={f} className="text-[8px] font-black text-center text-text-muted uppercase tracking-tighter">{f}</div>
-                  ))}
-                </div>
-              )}
+                    <div className="text-center">
+                      <p className={`text-[10px] font-bold tabular-nums ${(eqGains[i] ?? 0) !== 0 ? 'text-accent' : 'text-text-primary'}`}>
+                        {(eqGains[i] ?? 0) > 0 ? `+${eqGains[i]}` : (eqGains[i] ?? 0)}
+                      </p>
+                      <p className="text-[9px] text-text-muted font-black uppercase tracking-tighter opacity-60">{freq}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 

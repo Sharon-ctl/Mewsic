@@ -88,6 +88,8 @@ interface UISlice {
   trayEnabled: boolean;
   lastVolume: number;
   libraryViewMode: "grid" | "list";
+  homeViewMode: "grid" | "list";
+  playlistViewMode: "grid" | "list";
   theme: "dark" | "light";
   showAbout: boolean;
   editTrack: Track | null;
@@ -139,6 +141,8 @@ interface UISlice {
   clearDiscordCoverCache: () => void;
   toggleMute: () => void;
   setLibraryViewMode: (m: "grid" | "list") => void;
+  setHomeViewMode: (m: "grid" | "list") => void;
+  setPlaylistViewMode: (m: "grid" | "list") => void;
   setTheme: (t: "dark" | "light") => void;
   setShowAbout: (v: boolean) => void;
   setEditTrack: (t: Track | null) => void;
@@ -385,6 +389,8 @@ export const useStore = create<Store>()(
       guiScale: 1.15,
       trayEnabled: true,
       libraryViewMode: "list",
+      homeViewMode: "list",
+      playlistViewMode: "list",
       theme: "dark",
       showAbout: false,
       editTrack: null,
@@ -522,6 +528,8 @@ export const useStore = create<Store>()(
         }
       },
       setLibraryViewMode: (m) => set({ libraryViewMode: m }),
+      setHomeViewMode: (m) => set({ homeViewMode: m }),
+      setPlaylistViewMode: (m) => set({ playlistViewMode: m }),
       setLibraryListScrollOffset: (offset) => set({ libraryListScrollOffset: offset }),
       setLibraryGridScrollOffset: (offset) => set({ libraryGridScrollOffset: offset }),
       setPlaylistScrollOffset: (playlistId, offset) => set((s) => ({
@@ -673,6 +681,8 @@ export const useStore = create<Store>()(
         guiScale: s.guiScale,
         trayEnabled: s.trayEnabled,
         libraryViewMode: s.libraryViewMode,
+        homeViewMode: s.homeViewMode,
+        playlistViewMode: s.playlistViewMode,
         theme: s.theme,
         customTitlebar: s.customTitlebar,
         discordEnabled: s.discordEnabled,

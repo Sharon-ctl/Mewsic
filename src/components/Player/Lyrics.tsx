@@ -68,8 +68,15 @@ export function Lyrics() {
 
   if (!lyrics) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p className="text-sm text-text-muted italic">No lyrics available</p>
+      <div className="flex items-center justify-center h-full w-full p-8 animate-fade-in">
+        <div className="text-center space-y-3">
+          <h2 className="text-3xl font-black tracking-tight text-text-primary">No Lyrics Available</h2>
+          <p className="text-sm text-text-muted max-w-sm mx-auto leading-relaxed font-medium">
+            We couldn't find any lyrics for the currently playing track.
+            <br /><br />
+            If you have the lyrics, you can easily embed them into the audio file using the built-in metadata editor.
+          </p>
+        </div>
       </div>
     );
   }

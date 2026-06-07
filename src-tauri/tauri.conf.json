@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Mewsic",
-  "version": "0.8.0",
+  "version": "0.8.2",
   "identifier": "dev.xeoniii.mewsic",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -56,8 +56,8 @@
         "title": "Mewsic",
         "width": 1280,
         "height": 800,
-        "minWidth": 900,
-        "minHeight": 600,
+        "minWidth": 360,
+        "minHeight": 500,
         "decorations": false,
         "transparent": false,
         "devtools": true

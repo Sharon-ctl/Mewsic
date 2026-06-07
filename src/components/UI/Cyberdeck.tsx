@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Terminal, Cpu, HardDrive, Trash2, RefreshCw, X, Command } from "lucide-react";
 import { useStore } from "../../store";
 import { useLibrary } from "../../hooks/useLibrary";
-import { clearImageCache } from "../../utils/tauriApi";
+import { clearImageCache, getOSName } from "../../utils/tauriApi";
 import { useShallow } from "zustand/react/shallow";
 
 interface LogEntry {
@@ -326,8 +326,8 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
           addLog("DISPLAYS SYSTEM TELEMETRY AND APP BRANDING.");
           break;
         }
-        addLog("      _--_      MEWSIC v0.6.9");
-        addLog("    /      \\    OS: LINUX-X64");
+        addLog("      _--_      MEWSIC v0.8.2");
+        addLog(`    /      \\    OS: ${getOSName().toUpperCase()}-X64`);
         addLog("   |  O  O  |   THEME: " + theme.toUpperCase());
         addLog("    \\  __  /    ACCENT: " + accentColor.toUpperCase());
         addLog("     --  --     TRACKS: " + tracks.length);
@@ -441,7 +441,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
               <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">DISK: {tracks.length} OBJ</span>
             </div>
           </div>
-          <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v0.6.9</span>
+          <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v0.8.2</span>
         </div>
       </div>
     </div>

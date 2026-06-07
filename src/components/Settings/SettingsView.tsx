@@ -10,7 +10,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
-import { clearImageCache } from "../../utils/tauriApi";
+import { clearImageCache, getOSName } from "../../utils/tauriApi";
 import { ACCENT_PRESETS } from "../../utils/helpers";
 import { ConfirmationModal } from "../UI/ConfirmationModal";
 import { UpdateModal } from "../UI/UpdateModal";
@@ -111,7 +111,7 @@ export function SettingsView() {
   const [showFlashbangWarning, setShowFlashbangWarning] = useState(false);
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>("0.6.9");
+  const [appVersion, setAppVersion] = useState<string>("0.8.2");
   const [localGuiScale, setLocalGuiScale] = useState(guiScale);
 
   useEffect(() => {
@@ -552,7 +552,7 @@ export function SettingsView() {
           <p className="font-display font-black text-sm text-text-primary tracking-tight">Mewsic <span className="text-accent">v{appVersion}</span></p>
           <p className="text-[10px] text-text-muted mt-1 uppercase tracking-widest font-bold">Crafted with love for high-quality audio.</p>
           <p className="text-[10px] text-text-muted mt-0.5 uppercase tracking-widest font-bold">Made by xeoniii.dev</p>
-          <p className="text-[9px] text-text-muted/40 font-mono mt-4 uppercase tracking-[0.2em]">Build: {getBuildId()} • Linux</p>
+          <p className="text-[9px] text-text-muted/40 font-mono mt-4 uppercase tracking-[0.2em]">Build: {getBuildId()} • {getOSName()}</p>
         </div>
       </div>
 

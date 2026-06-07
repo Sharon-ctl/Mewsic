@@ -212,7 +212,7 @@ export default function HarbourView() {
     <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page relative">
       {showSecret && <SecretMenu onClose={() => setShowSecret(false)} />}
       {/* Header */}
-      <header className="p-6 flex items-center justify-between border-b border-border-subtle bg-surface-base/50 backdrop-blur-md sticky top-0 z-10">
+      <header className="p-4 md:p-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 border-b border-border-subtle bg-surface-base/50 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-accent">
             <Globe size={24} />
@@ -223,8 +223,8 @@ export default function HarbourView() {
           </div>
         </div>
 
-        <form onSubmit={handleSearch} className="flex gap-3 min-w-[600px] items-center">
-          <div className="relative flex-1 group">
+        <form onSubmit={handleSearch} className="flex flex-wrap sm:flex-nowrap gap-2 md:gap-3 w-full xl:w-auto items-center">
+          <div className="relative flex-1 group min-w-[200px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent transition-colors" size={18} />
             <input
               type="text"
@@ -235,20 +235,24 @@ export default function HarbourView() {
             />
           </div>
 
-          <ProviderSelector provider={provider} setProvider={setProvider} />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-accent hover:bg-accent/80 disabled:opacity-50 text-black font-bold px-6 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/20 active:scale-95"
-          >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : (
-              <>
-                <Search size={18} />
-                <span>Search</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex-1 sm:flex-none">
+              <ProviderSelector provider={provider} setProvider={setProvider} />
+            </div>
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-accent hover:bg-accent/80 disabled:opacity-50 text-black font-bold px-6 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/20 active:scale-95 flex-1 sm:flex-none"
+            >
+              {loading ? <Loader2 size={18} className="animate-spin" /> : (
+                <>
+                  <Search size={18} />
+                  <span>Search</span>
+                </>
+              )}
+            </button>
+          </div>
         </form>
       </header>
 

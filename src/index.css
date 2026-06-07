@@ -146,7 +146,6 @@
 
   /* Player bar */
   --player-height: 100px;
-  --sidebar-width: 224px;
 }
 
 [data-theme="light"] {

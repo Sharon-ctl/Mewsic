@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import {
-  Play, Shuffle, Trash2, Music2, ListMusic, MinusCircle, PlusCircle, Pencil, Share2, Download,
+  Play, Shuffle, Trash2, Music2, ListMusic, MinusCircle, PlusCircle, Pencil, Share2, Download, List, LayoutGrid
 } from "lucide-react";
 import {
   DndContext,
@@ -15,9 +15,10 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
+  rectSortingStrategy,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
+import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { MusicCard, SortableMusicCard } from "../Dashboard/MusicCard";
@@ -38,6 +39,8 @@ export function PlaylistView() {
     setIsPlaying,
     setActiveView,
     setAddTrack,
+    playlistViewMode,
+    setPlaylistViewMode,
   } = useStore(
     useShallow((s) => ({
       activePlaylistId: s.activePlaylistId,
@@ -45,6 +48,8 @@ export function PlaylistView() {
       setIsPlaying: s.setIsPlaying,
       setActiveView: s.setActiveView,
       setAddTrack: s.setAddTrack,
+      playlistViewMode: s.playlistViewMode,
+      setPlaylistViewMode: s.setPlaylistViewMode,
     }))
   );
 
@@ -194,76 +199,100 @@ export function PlaylistView() {
           }}
         />
 
-        <div className="relative flex items-center gap-4">
-          {/* Playlist icon */}
-          <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0 overflow-hidden border border-border-subtle">
-            {playlist.coverArt ? (
-              <img src={playlist.coverArt} alt="Playlist cover" className="w-full h-full object-cover" />
-            ) : (
-              <ListMusic size={28} className="text-accent" />
-            )}
-          </div>
+        <div className="relative flex flex-col lg:flex-row gap-6 lg:items-center justify-between">
+          <div className="flex items-center gap-4 min-w-0">
+            {/* Playlist icon */}
+            <div className="w-16 h-16 rounded-2xl bg-accent-muted flex items-center justify-center flex-shrink-0 overflow-hidden border border-border-subtle">
+              {playlist.coverArt ? (
+                <img src={playlist.coverArt} alt="Playlist cover" className="w-full h-full object-cover" />
+              ) : (
+                <ListMusic size={28} className="text-accent" />
+              )}
+            </div>
 
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-text-muted uppercase tracking-widest mb-0.5">
-              Playlist
-            </p>
-            <h1 className="font-display font-bold text-xl text-text-primary truncate">
-              {playlist.name}
-            </h1>
-            <p className="text-sm text-text-secondary mt-0.5">
-              {pluralize(playlistTracks.length, "track")}
-              {playlistTracks.length > 0 && ` · ${formatDuration(totalDuration)}`}
-            </p>
+            <div className="min-w-0">
+              <p className="text-xs text-text-muted uppercase tracking-widest mb-0.5">
+                Playlist
+              </p>
+              <h1 className="font-display font-bold text-xl text-text-primary truncate">
+                {playlist.name}
+              </h1>
+              <p className="text-sm text-text-secondary mt-0.5 truncate">
+                {pluralize(playlistTracks.length, "track")}
+                {playlistTracks.length > 0 && ` · ${formatDuration(totalDuration)}`}
+              </p>
+            </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handlePlay}
-              disabled={!playlistTracks.length}
-              className="btn-accent"
-            >
-              <Play size={14} fill="currentColor" />
-              Play
-            </button>
-            <button
-              onClick={() => setShowManageTracks(true)}
-              className="btn-accent bg-accent-muted text-accent border-accent/20"
-              title="Add songs to this playlist"
-            >
-              <PlusCircle size={14} />
-              Add
-            </button>
-            <button
-              onClick={handleShuffle}
-              disabled={!playlistTracks.length}
-              className="btn-icon"
-              title="Shuffle"
-            >
-              <Shuffle size={15} />
-            </button>
-            <button
-              onClick={handleEdit}
-              className="btn-icon"
-              title="Edit playlist"
-            >
-              <Pencil size={15} />
-            </button>
-            <button
-              onClick={() => setShowSharePlaylist(true)}
-              className="btn-icon"
-              title="Share playlist"
-            >
-              <Share2 size={15} />
-            </button>
-            <button
-              onClick={handleDelete}
-              className="btn-icon text-red-400 hover:bg-red-500/10"
-              title="Delete playlist"
-            >
-              <Trash2 size={15} />
-            </button>
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end mt-2 lg:mt-0 w-full lg:w-auto">
+            <div className="flex gap-2">
+              <button
+                onClick={handlePlay}
+                disabled={!playlistTracks.length}
+                className="btn-accent px-6"
+              >
+                <Play size={14} fill="currentColor" />
+                Play
+              </button>
+              <button
+                onClick={() => setShowManageTracks(true)}
+                className="btn-accent bg-accent-muted text-accent border-accent/20 px-6"
+                title="Add songs to this playlist"
+              >
+                <PlusCircle size={14} />
+                Add
+              </button>
+            </div>
+
+            <div className="flex flex-1 justify-end min-w-max">
+              <div className="flex items-center gap-1 bg-surface-raised border border-border-subtle p-1 rounded-xl">
+                {/* View toggle */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPlaylistViewMode("list")}
+                    className={`btn-icon ${playlistViewMode === "list" ? "bg-surface-overlay text-accent shadow-sm" : ""}`}
+                    title="List view"
+                  >
+                    <List size={15} />
+                  </button>
+                  <button
+                    onClick={() => setPlaylistViewMode("grid")}
+                    className={`btn-icon ${playlistViewMode === "grid" ? "bg-surface-overlay text-accent shadow-sm" : ""}`}
+                    title="Grid view"
+                  >
+                    <LayoutGrid size={15} />
+                  </button>
+                </div>
+
+                <div className="h-5 w-px bg-border-subtle mx-1" />
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleShuffle}
+                    disabled={!playlistTracks.length}
+                    className="btn-icon"
+                    title="Shuffle"
+                  >
+                    <Shuffle size={15} />
+                  </button>
+                  <button
+                    onClick={handleEdit}
+                    className="btn-icon"
+                    title="Edit playlist"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="btn-icon text-red-400 hover:bg-red-500/10"
+                    title="Delete playlist"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -291,26 +320,43 @@ export function PlaylistView() {
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
-            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+            modifiers={[restrictToWindowEdges]}
           >
             <SortableContext
               items={playlistTracks.map((t) => t.id)}
-              strategy={verticalListSortingStrategy}
+              strategy={playlistViewMode === "grid" ? rectSortingStrategy : verticalListSortingStrategy}
             >
-              <div className="flex flex-col gap-2">
-                {playlistTracks.map((track, i) => (
-                  <SortableMusicCard
-                    key={track.id}
-                    track={track}
-                    allTracks={playlistTracks}
-                    trackIndex={i}
-                    sourceId={playlist.id}
-                    viewMode="list"
-                    onAddToPlaylist={handleAddToPlaylist}
-                    onRemoveFromPlaylist={handleRemoveFromPlaylist}
-                  />
-                ))}
-              </div>
+              {playlistViewMode === "grid" ? (
+                <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+                  {playlistTracks.map((track, i) => (
+                    <SortableMusicCard
+                      key={track.id}
+                      track={track}
+                      allTracks={playlistTracks}
+                      trackIndex={i}
+                      sourceId={playlist.id}
+                      viewMode="grid"
+                      onAddToPlaylist={handleAddToPlaylist}
+                      onRemoveFromPlaylist={handleRemoveFromPlaylist}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {playlistTracks.map((track, i) => (
+                    <SortableMusicCard
+                      key={track.id}
+                      track={track}
+                      allTracks={playlistTracks}
+                      trackIndex={i}
+                      sourceId={playlist.id}
+                      viewMode="list"
+                      onAddToPlaylist={handleAddToPlaylist}
+                      onRemoveFromPlaylist={handleRemoveFromPlaylist}
+                    />
+                  ))}
+                </div>
+              )}
             </SortableContext>
           </DndContext>
         )}

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect, memo } from "
 import { List as VList } from "react-window";
 import {
   Search, LayoutGrid, List, SlidersHorizontal,
-  Music2, RefreshCw, Plus, PlusCircle
+  Music2, RefreshCw, Plus, PlusCircle, ChevronDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { importFiles, deleteTrack } from "../../utils/tauriApi";
@@ -114,7 +114,7 @@ const GridContent = memo(function GridContent({
   const availableWidth = width - 64; // px-8 on both sides
   const columns = Math.max(1, Math.floor((availableWidth + GRID_GAP) / (MIN_CARD_WIDTH + GRID_GAP)));
   const rowCount = Math.ceil(tracks.length / columns);
-  const rowHeight = 280; // Approximate height for grid card + padding
+  const rowHeight = 310; // Increased height to prevent clipping
 
   const RowComponent = useCallback(
     (props: { index: number; style: React.CSSProperties }) => {
@@ -122,7 +122,7 @@ const GridContent = memo(function GridContent({
       const rowTracks = tracks.slice(startIndex, startIndex + columns);
 
       return (
-        <div style={props.style} className="px-8 py-2">
+        <div style={props.style} className="px-8 py-4">
           <div 
             className="grid gap-4" 
             style={{ 
@@ -304,31 +304,14 @@ export function LibraryView() {
     return list;
   }, [displayTracks, localSearch, sortKey, sortAsc]);
 
-  const SortBtn = ({
-    k,
-    label,
-  }: {
-    k: SortKey;
-    label: string;
-  }) => (
-    <button
-      onClick={() => toggleSort(k)}
-      className={`text-xs px-2.5 py-1 rounded-lg transition-colors ${
-        sortKey === k
-          ? "bg-accent-muted text-accent font-semibold"
-          : "text-text-muted hover:text-text-secondary"
-      }`}
-    >
-      {label} {sortKey === k ? (sortAsc ? "↑" : "↓") : ""}
-    </button>
-  );
+
 
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-4 px-8 py-6 flex-shrink-0">
+      <div className="flex flex-col md:flex-row flex-wrap md:items-center gap-4 w-full px-4 md:px-8 py-4 md:py-6 flex-shrink-0">
         {/* Search */}
-        <div className="relative group">
+        <div className="relative group flex-grow min-w-[200px]">
           <Search
             size={14}
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent transition-colors"
@@ -338,64 +321,60 @@ export function LibraryView() {
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Search your library…"
-            className="w-72 pl-10 pr-4 py-2.5 rounded-xl text-sm bg-surface-overlay border border-border-subtle text-text-primary placeholder-text-muted outline-none focus:border-accent/40 focus:ring-4 focus:ring-accent/5 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-surface-overlay border border-border-subtle text-text-primary placeholder-text-muted outline-none focus:border-accent/40 focus:ring-4 focus:ring-accent/5 transition-all"
           />
         </div>
 
-        <div className="h-6 w-px bg-border-subtle mx-2" />
+        <div className="hidden lg:block h-6 w-px bg-border-subtle mx-2 flex-shrink-0" />
 
-        {/* Sort controls */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted mr-1">Sort by</span>
-          <div className="flex items-center gap-1 bg-surface-raised p-1 rounded-xl border border-border-subtle">
-            <SortBtn k="title"    label="Title" />
-            <SortBtn k="artist"   label="Artist" />
-            <SortBtn k="album"    label="Album" />
-            <SortBtn k="duration" label="Time" />
+        <div className="flex flex-wrap items-center justify-between md:justify-end gap-4 w-full md:w-auto flex-shrink-0">
+          {/* Sort controls */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider text-text-muted mr-1">Sort by</span>
+            <SortDropdown sortKey={sortKey} sortAsc={sortAsc} toggleSort={toggleSort} />
+          </div>
+
+          {/* View toggle & Actions */}
+          <div className="flex items-center gap-2 ml-auto md:ml-0">
+            {/* View toggle */}
+            <div className="flex items-center gap-1 bg-surface-raised border border-border-subtle rounded-xl p-1">
+              <button
+                onClick={() => setLibraryViewMode("list")}
+                className={`btn-icon ${libraryViewMode === "list" ? "bg-surface-overlay text-accent shadow-sm" : ""}`}
+                title="List view"
+              >
+                <List size={15} />
+              </button>
+              <button
+                onClick={() => setLibraryViewMode("grid")}
+                className={`btn-icon ${libraryViewMode === "grid" ? "bg-surface-overlay text-accent shadow-sm" : ""}`}
+                title="Grid view"
+              >
+                <LayoutGrid size={15} />
+              </button>
+            </div>
+
+            {/* Rescan */}
+            <button
+              onClick={() => musicDir && rescanDirectory()}
+              disabled={isScanning}
+              className="btn-icon bg-surface-raised border border-border-subtle rounded-xl w-10 h-10"
+              title="Rescan library"
+            >
+              <RefreshCw size={15} className={isScanning ? "animate-spin text-accent" : ""} />
+            </button>
+
+            {/* Import */}
+            <button
+              onClick={handleImport}
+              className="btn-accent h-10 px-4 flex-shrink-0"
+              title="Import music to library"
+            >
+              <Plus size={15} />
+              <span className="hidden sm:inline">Import</span>
+            </button>
           </div>
         </div>
-
-        <div className="flex-1" />
-
-        {/* View toggle */}
-        <div className="flex items-center gap-1 bg-surface-raised border border-border-subtle rounded-xl p-1">
-          <button
-            onClick={() => setLibraryViewMode("list")}
-            className={`btn-icon ${libraryViewMode === "list" ? "bg-accent-muted text-accent" : ""}`}
-            title="List view"
-          >
-            <List size={15} />
-          </button>
-          <button
-            onClick={() => setLibraryViewMode("grid")}
-            className={`btn-icon ${libraryViewMode === "grid" ? "bg-accent-muted text-accent" : ""}`}
-            title="Grid view"
-          >
-            <LayoutGrid size={15} />
-          </button>
-        </div>
-
-        {/* Rescan */}
-        <button
-          onClick={() => musicDir && rescanDirectory()}
-          disabled={isScanning}
-          className="btn-icon bg-surface-raised border border-border-subtle rounded-xl w-10 h-10"
-          title="Rescan library"
-        >
-          <RefreshCw size={15} className={isScanning ? "animate-spin text-accent" : ""} />
-        </button>
-
-        {/* Import */}
-        <button
-          onClick={handleImport}
-          className="btn-accent h-10 px-4 flex-shrink-0"
-          title="Import music to library"
-        >
-          <Plus size={15} />
-          <span>Import</span>
-        </button>
-
-
       </div>
 
       {/* Track count */}
@@ -439,6 +418,71 @@ export function LibraryView() {
           tracks={addTracks}
           onClose={() => setAddTracks(null)}
         />
+      )}
+    </div>
+  );
+}
+
+function SortDropdown({
+  sortKey,
+  sortAsc,
+  toggleSort,
+}: {
+  sortKey: SortKey;
+  sortAsc: boolean;
+  toggleSort: (k: SortKey) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const options: { k: SortKey; label: string }[] = [
+    { k: "title", label: "Title" },
+    { k: "artist", label: "Artist" },
+    { k: "album", label: "Album" },
+    { k: "duration", label: "Time" },
+  ];
+
+  const currentOpt = options.find((o) => o.k === sortKey) || options[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClick = () => setIsOpen(false);
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, [isOpen]);
+
+  return (
+    <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center gap-2 bg-surface-raised border ${isOpen ? 'border-accent ring-2 ring-accent/20' : 'border-border-subtle hover:border-text-muted'} rounded-xl px-3 py-2 transition-all text-xs font-medium justify-between group shadow-sm min-w-[110px]`}
+      >
+        <span className="text-text-primary flex items-center gap-1.5">
+          {currentOpt.label}
+          {sortAsc ? <ArrowUp size={12} className="text-accent" /> : <ArrowDown size={12} className="text-accent" />}
+        </span>
+        <ChevronDown size={14} className={`text-text-muted transition-transform duration-300 ${isOpen ? 'rotate-180 text-accent' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full mt-2 left-0 w-36 bg-surface-overlay border border-border-glass rounded-xl overflow-hidden shadow-2xl z-50 animate-scale-in p-1.5 backdrop-blur-xl">
+          {options.map((o) => (
+            <button
+              key={o.k}
+              onClick={() => {
+                toggleSort(o.k);
+                setIsOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-all ${
+                sortKey === o.k 
+                  ? 'bg-accent/10 text-accent font-bold' 
+                  : 'text-text-secondary hover:bg-white/5 hover:text-text-primary'
+              }`}
+            >
+              <span>{o.label}</span>
+              {sortKey === o.k && (sortAsc ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

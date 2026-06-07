@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { X, Music2, Globe, Heart, Github } from "lucide-react";
 import { open } from "@tauri-apps/plugin-shell";
 import { getVersion } from "@tauri-apps/api/app";
+import { getOSName } from "../../utils/tauriApi";
 import { useStore } from "../../store";
 
 export function AboutModal() {
   const { setShowAbout } = useStore();
-  const [appVersion, setAppVersion] = useState<string>("0.8.0");
+  const [appVersion, setAppVersion] = useState<string>("0.8.2");
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});
@@ -99,7 +100,7 @@ export function AboutModal() {
 
           <div className="mt-10 pt-6 border-t border-border-subtle w-full flex flex-col gap-1.5 items-center">
             <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              Build {getBuildId()} • Linux
+              Build {getBuildId()} • {getOSName()}
             </p>
             <p className="text-[10px] text-text-muted uppercase tracking-widest">
               11,583 Lines of code!

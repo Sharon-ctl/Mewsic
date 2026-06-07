@@ -183,42 +183,6 @@ export const MusicCard = memo(function MusicCard({
           {formatDuration(track.duration)}
         </span>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onEditMetadata && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onEditMetadata(track); }}
-              className="btn-icon"
-              title="Edit metadata"
-            >
-              <Pencil size={14} />
-            </button>
-          )}
-          {onAddToPlaylist && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onAddToPlaylist(track); }}
-              className="btn-icon"
-            >
-              <PlusCircle size={14} />
-            </button>
-          )}
-          {onRemoveFromPlaylist && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(track); }}
-              className="btn-icon text-red-400"
-            >
-              <MinusCircle size={14} />
-            </button>
-          )}
-          {onDelete && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onDelete(track); }}
-              className="btn-icon text-red-500/70 hover:text-red-500"
-              title="Delete track from disk"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
-        </div>
       </div>
     );
   }
@@ -253,13 +217,6 @@ export const MusicCard = memo(function MusicCard({
             </div>
           )}
         </div>
-
-        <div className="absolute top-2 right-2">
-          <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-black/60 text-text-muted">
-            {track.format}
-          </span>
-        </div>
-
       </div>
 
       <div className="p-3 flex flex-col min-w-0 gap-0.5">
@@ -278,44 +235,6 @@ export const MusicCard = memo(function MusicCard({
           <span className="text-[11px] text-text-muted font-mono">
             {formatDuration(track.duration)}
           </span>
-          <div className="flex items-center gap-1">
-            {onEditMetadata && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onEditMetadata(track); }}
-                className="btn-icon p-1 opacity-0 group-hover:opacity-100"
-                title="Edit metadata"
-              >
-                <Pencil size={13} />
-              </button>
-            )}
-            {onAddToPlaylist && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onAddToPlaylist(track); }}
-                className="btn-icon p-1 opacity-0 group-hover:opacity-100"
-                title="Add to playlist"
-              >
-                <PlusCircle size={13} />
-              </button>
-            )}
-            {onRemoveFromPlaylist && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(track); }}
-                className="btn-icon p-1 opacity-0 group-hover:opacity-100 text-red-400"
-                title="Remove from playlist"
-              >
-                <MinusCircle size={13} />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(track); }}
-                className="btn-icon p-1 opacity-0 group-hover:opacity-100 text-red-500/70 hover:text-red-500"
-                title="Delete track from disk"
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>

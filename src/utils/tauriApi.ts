@@ -17,6 +17,15 @@ export function convertFileSrc(filePath: string): string {
   return `http://127.0.0.1:1422${encodeURI(path)}`;
 }
 
+export function getOSName(): "Windows" | "macOS" | "Linux" | "Unknown OS" {
+  if (typeof navigator === "undefined") return "Unknown OS";
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes("win")) return "Windows";
+  if (ua.includes("mac")) return "macOS";
+  if (ua.includes("linux") && !ua.includes("android")) return "Linux";
+  return "Unknown OS";
+}
+
 function toCamel(s: string): string {
   return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
