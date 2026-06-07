@@ -197,7 +197,9 @@ export function Sidebar() {
       {/* Scan indicator */}
       {isScanning && (
         <div className="px-2 md:px-4 py-3 border-t border-border-subtle flex items-center justify-center md:justify-start gap-2">
-          <Loader2 size={13} className="animate-spin text-accent flex-shrink-0" title="Scanning library…" />
+          <div title="Scanning library…" className="flex items-center justify-center flex-shrink-0">
+            <Loader2 size={13} className="animate-spin text-accent" />
+          </div>
           <span className="text-xs text-text-muted hidden md:block truncate">Scanning library…</span>
         </div>
       )}
