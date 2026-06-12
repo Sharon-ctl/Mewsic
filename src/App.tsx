@@ -261,6 +261,9 @@ export default function App() {
       } else if (e.ctrlKey && e.shiftKey && e.code === "Backquote") {
         e.preventDefault();
         setShowCyberdeck(!showCyberdeck);
+      } else if (e.ctrlKey && e.shiftKey && e.code === "KeyR") {
+        e.preventDefault();
+        window.location.reload();
       } else if (e.ctrlKey && e.shiftKey && e.code === "KeyD") {
         e.preventDefault();
         const { isDevMode, setDevMode, addNotification } = useStore.getState();

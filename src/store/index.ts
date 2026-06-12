@@ -102,6 +102,7 @@ interface UISlice {
   discordEnabled: boolean;
   systemNotifications: boolean;
   lowEndMode: boolean;
+  safeAudioMode: boolean;
   shortcuts: ShortcutMap;
   showImportPlaylist: boolean;
   showCreatePlaylist: boolean;
@@ -138,6 +139,7 @@ interface UISlice {
   setDiscordEnabled: (v: boolean) => void;
   setSystemNotifications: (v: boolean) => void;
   setLowEndMode: (v: boolean) => void;
+  setSafeAudioMode: (v: boolean) => void;
   clearDiscordCoverCache: () => void;
   toggleMute: () => void;
   setLibraryViewMode: (m: "grid" | "list") => void;
@@ -403,6 +405,7 @@ export const useStore = create<Store>()(
       discordEnabled: true,
       systemNotifications: true,
       lowEndMode: false,
+      safeAudioMode: false,
       showImportPlaylist: false,
       showCreatePlaylist: false,
       showCyberdeck: false,
@@ -439,7 +442,7 @@ export const useStore = create<Store>()(
           newHistory.push({ view: v, playlistId: null });
           set({ history: newHistory, historyIndex: newHistory.length - 1 });
         }
-        set({ activeView: v, activePlaylistId: null });
+        set({ activeView: v, activePlaylistId: null, searchQuery: "" });
       },
 
       setActivePlaylist: (id, skipHistory = false) => {
@@ -450,7 +453,7 @@ export const useStore = create<Store>()(
           newHistory.push({ view: v, playlistId: id });
           set({ history: newHistory, historyIndex: newHistory.length - 1 });
         }
-        set({ activePlaylistId: id, activeView: v });
+        set({ activePlaylistId: id, activeView: v, searchQuery: "" });
       },
 
       setSearchQuery: (q) => set({ searchQuery: q }),
@@ -484,6 +487,16 @@ export const useStore = create<Store>()(
       setDiscordEnabled: (v) => set({ discordEnabled: v }),
       setSystemNotifications: (v) => set({ systemNotifications: v }),
       setLowEndMode: (v) => set({ lowEndMode: v }),
+      setSafeAudioMode: (v) => {
+        set({ safeAudioMode: v });
+        get().addNotification(
+          "Safe Audio Mode changed. Please press Ctrl+Shift+R to reload the app and apply changes.",
+          "info",
+          5000,
+          false,
+          "Audio Engine Restart Required"
+        );
+      },
       clearDiscordCoverCache: () => set({ discordCoverCache: {} }),
       
       shortcuts: {
@@ -688,6 +701,7 @@ export const useStore = create<Store>()(
         discordEnabled: s.discordEnabled,
         systemNotifications: s.systemNotifications,
         lowEndMode: s.lowEndMode,
+        safeAudioMode: s.safeAudioMode,
         discordCoverCache: s.discordCoverCache,
         shortcuts: s.shortcuts,
         reverbEnabled: s.reverbEnabled,

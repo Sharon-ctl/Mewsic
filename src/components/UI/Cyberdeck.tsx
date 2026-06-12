@@ -326,7 +326,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
           addLog("DISPLAYS SYSTEM TELEMETRY AND APP BRANDING.");
           break;
         }
-        addLog("      _--_      MEWSIC v0.8.2");
+        addLog("      _--_      MEWSIC v0.8.4");
         addLog(`    /      \\    OS: ${getOSName().toUpperCase()}-X64`);
         addLog("   |  O  O  |   THEME: " + theme.toUpperCase());
         addLog("    \\  __  /    ACCENT: " + accentColor.toUpperCase());
@@ -441,7 +441,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
               <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">DISK: {tracks.length} OBJ</span>
             </div>
           </div>
-          <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v0.8.2</span>
+          <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v0.8.4</span>
         </div>
       </div>
     </div>

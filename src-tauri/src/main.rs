@@ -911,35 +911,30 @@ async fn youtube_search_fallback(app_handle: tauri::AppHandle, query: String) ->
     let search_query = format!("ytsearch20:{} official audio", query);
     let yt_dlp_path = get_yt_dlp_path(&app_handle).await;
     
-    let output = if yt_dlp_path.exists() {
+    let mut cmd = if yt_dlp_path.exists() {
         Command::new(&yt_dlp_path)
-            .args([
-                "--dump-json",
-                "--flat-playlist",
-                "--no-playlist",
-                "--default-search", "ytsearch",
-                "--no-check-certificates",
-                "--geo-bypass",
-                "--extractor-args", "youtube:player-client=ios,android,web",
-                &search_query
-            ])
-            .output()
-            .map_err(|e| format!("YouTube search failed (local): {}", e))?
     } else {
         Command::new("yt-dlp")
-            .args([
-                "--dump-json",
-                "--flat-playlist",
-                "--no-playlist",
-                "--default-search", "ytsearch",
-                "--no-check-certificates",
-                "--geo-bypass",
-                "--extractor-args", "youtube:player-client=ios,android,web",
-                &search_query
-            ])
-            .output()
-            .map_err(|e| format!("YouTube search failed (system): {}", e))?
     };
+    
+    cmd.args([
+        "--dump-json",
+        "--flat-playlist",
+        "--no-playlist",
+        "--default-search", "ytsearch",
+        "--no-check-certificates",
+        "--geo-bypass",
+        "--extractor-args", "youtube:player-client=ios,android,web",
+        &search_query
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd.output().map_err(|e| format!("YouTube search failed: {}", e))?;
 
     let body = String::from_utf8_lossy(&output.stdout);
     let mut results = Vec::new();
@@ -1098,6 +1093,12 @@ async fn download_track(
     };
     cmd.args(&args);
 
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
@@ -1162,6 +1163,11 @@ async fn download_track(
             tag.insert_text(ItemKey::Comment, comment);
         }
 
+        // Auto fetch and embed lyrics
+        let search_query = format!("{} {}", artist, title);
+        if let Ok(Some(lyrics_text)) = fetch_lyrics(search_query).await {
+            tag.insert_text(ItemKey::Lyrics, lyrics_text);
+        }
 
         // Attempt to download and embed cover art
         if !_cover_art.is_empty() {

@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Home, Library, Settings, Music2, Plus,
-  ListMusic, ChevronRight, Loader2, PlayCircle, Globe, Download, Activity
+  ListMusic, ChevronRight, Loader2, Mic2, Globe, Download, Activity
 } from "lucide-react";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
@@ -99,7 +99,7 @@ export function Sidebar() {
           onClick={() => setActiveView("home")}
         />
         <NavItem
-          icon={<PlayCircle size={15} />}
+          icon={<Mic2 size={15} />}
           label="Lyrics"
           view="player"
           active={activeView === "player"}
@@ -163,7 +163,7 @@ export function Sidebar() {
         {/* Playlist list */}
         <div className="flex flex-col gap-0.5 overflow-y-auto flex-1 pr-0 md:pr-0.5">
           {displayPlaylists.length === 0 ? (
-            <p className="text-xs text-text-muted px-2 py-2 italic">
+            <p className="text-xs text-text-muted px-2 py-2 italic hidden md:block">
               No playlists yet
             </p>
           ) : (

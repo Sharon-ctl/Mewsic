@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import { useStore } from "../../store";
 
-interface LyricLine {
+export interface LyricLine {
   time: number;
   text: string;
 }
@@ -26,11 +26,25 @@ function parseLRC(text: string): LyricLine[] {
   return lines;
 }
 
-export function Lyrics() {
+export function Lyrics({ 
+  autoScroll = true,
+  isSyncMode = false,
+  syncLines = [],
+  setSyncLines
+}: { 
+  autoScroll?: boolean;
+  isSyncMode?: boolean;
+  syncLines?: LyricLine[];
+  setSyncLines?: (lines: LyricLine[]) => void;
+}) {
   const currentTrack = useStore(s => s.currentTrack);
-  const currentTime = useStore(s => s.currentTime);
+  const requestSeek = useStore(s => s.requestSeek);
+  
+  const [activeIndex, setActiveIndex] = useState(-1);
   const activeRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const timeDisplayRef = useRef<HTMLSpanElement>(null);
+  const currentTimeRef = useRef(0);
 
   const lyrics = currentTrack?.lyrics;
 
@@ -47,24 +61,93 @@ export function Lyrics() {
     return parseLRC(lyrics);
   }, [lyrics, isSynced]);
 
-  const activeIndex = useMemo(() => {
-    if (!currentTrack || parsedLyrics.length === 0 || !isSynced) return -1;
-    let active = 0;
-    for (let i = 0; i < parsedLyrics.length; i++) {
-      if (parsedLyrics[i].time <= currentTime) {
-        active = i;
-      } else {
-        break;
-      }
-    }
-    return active;
-  }, [currentTime, parsedLyrics, isSynced]);
-
+  // High-performance direct DOM subscription to eliminate 20fps React re-renders on i3-4150
   useEffect(() => {
-    if (isSynced && activeRef.current && containerRef.current) {
+    currentTimeRef.current = useStore.getState().currentTime;
+    
+    const unsub = useStore.subscribe((state) => {
+      const time = state.currentTime;
+      currentTimeRef.current = time;
+
+      // Update sync mode timer badge directly
+      if (isSyncMode && timeDisplayRef.current) {
+        const m = Math.floor(time / 60).toString().padStart(2, '0');
+        const s = Math.floor(time % 60).toString().padStart(2, '0');
+        timeDisplayRef.current.textContent = `${m}:${s}`;
+      }
+
+      // Update active index for playback mode smoothly
+      if (!isSyncMode && parsedLyrics.length > 0 && isSynced) {
+        let active = 0;
+        for (let i = 0; i < parsedLyrics.length; i++) {
+          if (parsedLyrics[i].time <= time) {
+            active = i;
+          } else {
+            break;
+          }
+        }
+        setActiveIndex(prev => prev !== active ? active : prev);
+      }
+    });
+    
+    return unsub;
+  }, [isSyncMode, parsedLyrics, isSynced]);
+
+  // Handle smooth scrolling
+  useEffect(() => {
+    if (autoScroll && isSynced && activeRef.current && containerRef.current && !isSyncMode) {
       activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [activeIndex, isSynced]);
+  }, [activeIndex, isSynced, autoScroll, isSyncMode]);
+
+  if (isSyncMode && setSyncLines) {
+    return (
+      <div className="h-full overflow-y-auto scrollbar-hide relative" style={{ paddingBottom: '30vh' }}>
+        <div className="sticky top-0 z-10 pt-8 pb-6 px-4 sm:px-8 bg-surface-base">
+          <div className="bg-surface-overlay/80 backdrop-blur-xl py-3 px-4 rounded-xl border border-border-glass shadow-glass flex items-center justify-between">
+            <p className="text-text-primary text-xs font-medium">
+              Click a line to assign time. <span className="text-text-muted hidden md:inline">Ctrl+Click to seek.</span>
+            </p>
+            <span 
+              ref={timeDisplayRef}
+              className="text-accent font-mono text-sm font-bold bg-black/20 px-3 py-1 rounded-lg"
+            >
+              00:00
+            </span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {syncLines.map((line, i) => {
+            const isLineSynced = line.time >= 0;
+            return (
+              <div
+                key={i}
+                className={`py-3 flex items-center justify-between rounded-xl transition-all hover:bg-surface-raised/50 hover:scale-[1.01] cursor-pointer group px-6 mx-4 sm:mx-8 ${isLineSynced ? 'bg-surface-raised/20 border border-border-subtle/50' : 'border border-transparent'}`}
+                onClick={(e) => {
+                  if (e.ctrlKey) {
+                    if (isLineSynced) requestSeek(line.time);
+                    return;
+                  }
+                  const newLines = [...syncLines];
+                  newLines[i] = { ...newLines[i], time: currentTimeRef.current };
+                  setSyncLines(newLines);
+                }}
+              >
+                <p className={`text-[15px] leading-relaxed flex-1 transition-colors ${isLineSynced ? "text-accent font-medium" : "text-text-muted group-hover:text-text-primary"}`}>
+                  {line.text}
+                </p>
+                <span className="text-xs font-mono text-text-muted w-16 text-right opacity-50 group-hover:opacity-100 transition-opacity">
+                  {isLineSynced 
+                    ? `${Math.floor(line.time / 60).toString().padStart(2, '0')}:${Math.floor(line.time % 60).toString().padStart(2, '0')}.${Math.floor((line.time % 1)*100).toString().padStart(2, '0')}` 
+                    : "--:--.--"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   if (!lyrics) {
     return (
@@ -82,12 +165,13 @@ export function Lyrics() {
   }
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto py-16 scrollbar-hide">
+    <div ref={containerRef} className="h-full overflow-y-auto py-16">
       {parsedLyrics.map((line, i) => (
         <div
           key={i}
           ref={i === activeIndex ? activeRef : undefined}
-          className="py-3 flex items-center justify-center"
+          className={`py-3 flex items-center justify-center rounded-xl transition-colors mx-4 ${isSynced ? "cursor-pointer hover:bg-surface-raised/30 group" : ""}`}
+          onClick={() => isSynced && requestSeek(line.time)}
         >
           <p
             className={`text-base px-6 text-center transition-all duration-300 ${
@@ -95,7 +179,7 @@ export function Lyrics() {
                 ? "text-text-primary"
                 : i === activeIndex
                 ? "text-accent font-semibold scale-110"
-                : "text-text-muted/50"
+                : "text-text-muted/50 group-hover:text-text-primary"
             }`}
           >
             {line.text}

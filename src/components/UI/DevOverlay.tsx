@@ -9,6 +9,7 @@ interface AppStats {
 
 export function DevOverlay() {
   const [stats, setStats] = useState<AppStats | null>(null);
+  const [fps, setFps] = useState<number>(0);
   const isDevMode = useStore(s => s.isDevMode);
 
   useEffect(() => {
@@ -21,8 +22,25 @@ export function DevOverlay() {
       setStats(event.payload);
     });
 
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let rAF: number;
+    
+    const loop = () => {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        setFps(frameCount);
+        frameCount = 0;
+        lastTime = now;
+      }
+      rAF = requestAnimationFrame(loop);
+    };
+    rAF = requestAnimationFrame(loop);
+
     return () => {
       unlisten.then(f => f());
+      cancelAnimationFrame(rAF);
     };
   }, [isDevMode]);
 
@@ -38,6 +56,12 @@ export function DevOverlay() {
           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">CPU</span>
           <span className={`text-xs font-mono font-bold ${stats.cpu > 50 ? 'text-red-400' : 'text-accent'}`}>
             {cpuPercent}%
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">FPS</span>
+          <span className={`text-xs font-mono font-bold ${fps < 30 ? 'text-red-400' : fps < 50 ? 'text-yellow-400' : 'text-accent'}`}>
+            {fps}
           </span>
         </div>
         <div className="flex items-center gap-3">

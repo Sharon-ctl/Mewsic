@@ -3,6 +3,7 @@
  * -------------------
  * Global singleton for the audio engine and Web Audio API integration.
  */
+import { useStore } from "../store";
 
 let audioInstance: HTMLAudioElement;
 let audioCtx: AudioContext | null = null;
@@ -15,7 +16,6 @@ let dryGain: GainNode | null = null;
 let wetGain: GainNode | null = null;
 let boostGain: GainNode | null = null;
 let masterGain: GainNode | null = null;
-let limiter: DynamicsCompressorNode | null = null;
 let eqFilters: BiquadFilterNode[] = [];
 const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -121,15 +121,11 @@ export function initAudioContext() {
     boostGain = audioCtx.createGain();
     masterGain = audioCtx.createGain();
 
-    // Final Stage: Safety Limiter to prevent clipping ("chipping")
-    limiter = audioCtx.createDynamicsCompressor();
-    limiter.threshold.setValueAtTime(-1.0, audioCtx.currentTime); // Start limiting just below 0dB
-    limiter.knee.setValueAtTime(0, audioCtx.currentTime);        // Hard knee for limiting
-    limiter.ratio.setValueAtTime(20, audioCtx.currentTime);      // High ratio for limiting
-    limiter.attack.setValueAtTime(0.003, audioCtx.currentTime);  // Fast attack
-    limiter.release.setValueAtTime(0.1, audioCtx.currentTime);   // Standard release
-    
-    // Create 10 EQ bands
+    // DynamicsCompressorNode removed: highly susceptible to NaN cascades 
+    // on Linux when Bluetooth/sink sample rates change abruptly.
+    // Create 10 EQ bands safely clamped below Nyquist to prevent crashes 
+    // on low-sample-rate headsets (e.g. HSP/HFP profile at 8kHz).
+    const nyquist = audioCtx!.sampleRate / 2;
     eqFilters = EQ_FREQUENCIES.map(freq => {
       const filter = audioCtx!.createBiquadFilter();
       filter.type = "peaking";
@@ -151,9 +147,15 @@ export function initAudioContext() {
     dryGain.connect(boostGain);
     wetGain.connect(boostGain);
     boostGain.connect(masterGain);
-    masterGain.connect(limiter);
-    limiter.connect(audioCtx.destination);
+    masterGain.connect(audioCtx.destination);
     
+    // Auto-resume on suspend/interrupt (e.g., Bluetooth device switch)
+    audioCtx.addEventListener("statechange", () => {
+      if (audioCtx?.state === "suspended" || audioCtx?.state === "interrupted") {
+        audioCtx.resume().catch(() => {});
+      }
+    });
+
     syncEngineState();
     if (audioCtx.state === "suspended") audioCtx.resume();
   } catch (err) {
@@ -200,7 +202,13 @@ export function setLowEndMode(enabled: boolean) {
 export function setEngineVolume(vol: number) {
   currentVolume = vol;
   syncEngineState();
-  if (audio) audio.volume = 1.0; 
+  if (audio) {
+    if (audioCtx) {
+      audio.volume = 1.0; 
+    } else {
+      audio.volume = vol;
+    }
+  }
 }
 
 export function setReverbEnabled(enabled: boolean) {
@@ -237,3 +245,14 @@ export function setVolumeBoost(multiplier: number) {
 
 export function getAnalyser() { return null; }
 export function getNormalizedFrequencyData() { return []; }
+
+// Ensure AudioContext boots up inside a synchronous user gesture
+if (typeof document !== "undefined") {
+  document.addEventListener("click", () => {
+    if (!useStore.getState().safeAudioMode) {
+      initAudioContext();
+    } else if (audioCtx && audioCtx.state === "suspended") {
+      audioCtx.resume().catch(() => {});
+    }
+  });
+}

@@ -31,6 +31,8 @@ export function AudioView() {
     volumeBoost, setVolumeBoost,
     resetAudioEffects,
     lowEndMode,
+    safeAudioMode,
+    setSafeAudioMode,
     isDevMode,
     eqGains,
     setEqGain,
@@ -63,6 +65,8 @@ export function AudioView() {
     setEqGain: s.setEqGain || (() => { }),
     resetEq: s.resetEq || (() => { }),
     lowEndMode: !!s.lowEndMode,
+    safeAudioMode: !!s.safeAudioMode,
+    setSafeAudioMode: s.setSafeAudioMode,
     isDevMode: !!s.isDevMode,
     audioPresets: s.audioPresets || [],
     activePresetId: s.activePresetId,
@@ -103,7 +107,7 @@ export function AudioView() {
     }
   }, [renamePresetId, audioPresets]);
 
-  if (lowEndMode) {
+  if (lowEndMode && !isDevMode) {
     return (
       <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page">
         <div className="h-full flex flex-col items-center justify-center space-y-6 animate-fade-in p-8">
@@ -313,6 +317,7 @@ export function AudioView() {
               </div>
             </div>
           </section>
+
 
           {/* Effects Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -536,6 +541,28 @@ export function AudioView() {
               </div>
             </div>
           </section>
+
+          {/* Safe Audio Mode Toggle (Condensed) */}
+          <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 flex items-center justify-between gap-4 mt-8">
+            <div className="flex items-center gap-4 min-w-0">
+              <AlertTriangle size={20} className="text-amber-500 flex-shrink-0" />
+              <div className="min-w-0">
+                <h4 className="font-bold text-sm text-amber-500">Safe Audio / Direct Mode</h4>
+                <p className="text-xs text-text-muted truncate">
+                  Bypasses advanced DSP (EQ/Reverb) to fix Bluetooth headset crashes.
+                </p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={safeAudioMode}
+                onChange={() => setSafeAudioMode(!safeAudioMode)}
+              />
+              <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 border border-border-subtle" />
+            </label>
+          </div>
 
           <div className="flex justify-center gap-8 text-[10px] font-black text-text-muted uppercase tracking-[0.3em] py-8 opacity-30">
             <span>Mewsic Audio Engine</span>

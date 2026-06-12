@@ -111,7 +111,7 @@ export function SettingsView() {
   const [showFlashbangWarning, setShowFlashbangWarning] = useState(false);
   const [showRestartModal, setShowRestartModal] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [appVersion, setAppVersion] = useState<string>("0.8.2");
+  const [appVersion, setAppVersion] = useState<string>("0.8.4");
   const [localGuiScale, setLocalGuiScale] = useState(guiScale);
 
   useEffect(() => {

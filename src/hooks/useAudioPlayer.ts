@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback } from "react";
 
 // Throttle interval for time updates. Now that the app is optimized with useShallow, 
-// we can safely lower this to 200ms (5fps) for a much smoother progress bar without lag.
-const TIME_UPDATE_INTERVAL = 200;
+// we can safely lower this to 50ms (20fps) for a much smoother progress bar without lag.
+const TIME_UPDATE_INTERVAL = 50;
 // Debounce for Discord RPC updates to prevent IPC clogging on rapid toggles/changes
 const RPC_DEBOUNCE_MS = 300;
 
@@ -65,6 +65,8 @@ export function useAudioPlayer() {
   })));
 
   const loadAbortRef = useRef<number>(0);
+  const isSeeking = useRef<boolean>(false);
+  const lastSeekTime = useRef<number>(0);
 
   useEffect(() => {
     if (!currentTrack) {
@@ -112,10 +114,13 @@ export function useAudioPlayer() {
   const seekRequest = useStore((s) => s.seekRequest);
   useEffect(() => {
     if (seekRequest !== null) {
+      lastSeekTime.current = performance.now();
+      isSeeking.current = true;
       audio.currentTime = seekRequest;
+      setCurrentTime(seekRequest);
       useStore.getState().clearSeekRequest();
     }
-  }, [seekRequest]);
+  }, [seekRequest, setCurrentTime]);
 
   // Sync Volume
   useEffect(() => {
@@ -246,9 +251,9 @@ export function useAudioPlayer() {
   }, [currentTrack?.id, isPlaying, discordEnabled, systemNotifications]);
 
   useEffect(() => {
-    // Throttled time update — reduces store writes from ~15/s to 2/s 
     let lastTimeWrite = 0;
     const onTimeUpdate = () => {
+      if (isSeeking.current || performance.now() - lastSeekTime.current < 500) return;
       const now = performance.now();
       if (now - lastTimeWrite >= TIME_UPDATE_INTERVAL) {
         lastTimeWrite = now;
@@ -275,13 +280,17 @@ export function useAudioPlayer() {
       }
     };
     const onPlay  = () => {
-      initAudioContext();
+      if (!useStore.getState().safeAudioMode) {
+        initAudioContext();
+      }
       setIsPlaying(true);
     };
     const onPause = () => setIsPlaying(false);
     const onError = (e: Event) => {
       console.error("Audio error:", e);
     };
+    const onSeeking = () => { isSeeking.current = true; };
+    const onSeeked = () => { isSeeking.current = false; };
 
     audio.addEventListener("timeupdate",      onTimeUpdate);
     audio.addEventListener("durationchange",  onDurationChange);
@@ -289,6 +298,8 @@ export function useAudioPlayer() {
     audio.addEventListener("play",            onPlay);
     audio.addEventListener("pause",           onPause);
     audio.addEventListener("error",           onError);
+    audio.addEventListener("seeking",         onSeeking);
+    audio.addEventListener("seeked",          onSeeked);
 
     return () => {
       audio.removeEventListener("timeupdate",     onTimeUpdate);
@@ -297,10 +308,14 @@ export function useAudioPlayer() {
       audio.removeEventListener("play",           onPlay);
       audio.removeEventListener("pause",          onPause);
       audio.removeEventListener("error",          onError);
+      audio.removeEventListener("seeking",        onSeeking);
+      audio.removeEventListener("seeked",         onSeeked);
     };
   }, [repeatMode]);
 
   const seek = useCallback((time: number) => {
+    lastSeekTime.current = performance.now();
+    isSeeking.current = true;
     audio.currentTime = time;
     setCurrentTime(time);
     

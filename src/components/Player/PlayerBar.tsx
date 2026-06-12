@@ -28,7 +28,6 @@ export function PlayerBar() {
   const {
     currentTrack,
     isPlaying,
-    currentTime,
     duration,
     volume,
     repeatMode,
@@ -45,7 +44,6 @@ export function PlayerBar() {
   } = useStore(useShallow((s) => ({
     currentTrack: s.currentTrack,
     isPlaying: s.isPlaying,
-    currentTime: s.currentTime,
     duration: s.duration,
     volume: s.volume,
     repeatMode: s.repeatMode,
@@ -61,9 +59,7 @@ export function PlayerBar() {
     toggleMute: s.toggleMute,
   })));
 
-  const { seek, togglePlay } = useAudioPlayer();
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const { togglePlay } = useAudioPlayer();
 
   const handleVolumeChange = useCallback(
     (val: number) => {
@@ -185,23 +181,7 @@ export function PlayerBar() {
         </div>
 
         {/* Seek bar row */}
-        <div className="flex items-center gap-2 w-full max-w-xl">
-          <span className="text-[11px] text-text-muted font-mono w-8 text-right flex-shrink-0">
-            {formatDuration(currentTime)}
-          </span>
-          <ThemedSlider
-            min={0}
-            max={duration}
-            step={0.1}
-            value={currentTime}
-            onChange={seek}
-            disabled={!currentTrack}
-            formatTooltip={formatDuration}
-          />
-          <span className="text-[11px] text-text-muted font-mono w-8 flex-shrink-0">
-            {formatDuration(duration)}
-          </span>
-        </div>
+        <SeekBarRow duration={duration} />
       </div>
 
       {/* ── Volume (Right) ────────────────────────────────────────────────────────── */}
@@ -228,6 +208,33 @@ export function PlayerBar() {
           {Math.round(volume * 100)}%
         </span>
       </div>
+    </div>
+  );
+}
+
+// Subcomponent to isolate the 20fps re-renders to just the progress bar
+function SeekBarRow({ duration }: { duration: number }) {
+  const currentTime = useStore(s => s.currentTime);
+  const currentTrack = useStore(s => s.currentTrack);
+  const { seek } = useAudioPlayer();
+
+  return (
+    <div className="flex items-center gap-2 w-full max-w-xl">
+      <span className="text-[11px] text-text-muted font-mono w-8 text-right flex-shrink-0">
+        {formatDuration(currentTime)}
+      </span>
+      <ThemedSlider
+        min={0}
+        max={duration}
+        step={0.1}
+        value={currentTime}
+        onChange={seek}
+        disabled={!currentTrack}
+        formatTooltip={formatDuration}
+      />
+      <span className="text-[11px] text-text-muted font-mono w-8 flex-shrink-0">
+        {formatDuration(duration)}
+      </span>
     </div>
   );
 }
