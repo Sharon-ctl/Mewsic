@@ -25,6 +25,7 @@ import { shuffleArray } from "../utils/helpers";
 interface PlayerSlice {
   currentTrack: Track | null;
   queue: Track[];
+  originalQueue: Track[];
   queueIndex: number;
   isPlaying: boolean;
   currentTime: number;
@@ -192,6 +193,7 @@ export const useStore = create<Store>()(
       // ── Player ──────────────────────────────────────────────────────────────
       currentTrack: null,
       queue: [],
+      originalQueue: [],
       queueIndex: -1,
       isPlaying: false,
       currentTime: 0,
@@ -218,6 +220,7 @@ export const useStore = create<Store>()(
         }
 
         set({
+          originalQueue: [...tracks],
           queue: finalTracks,
           queueIndex: finalIndex,
           currentTrack: finalTracks[finalIndex] ?? null,
@@ -285,14 +288,20 @@ export const useStore = create<Store>()(
       },
 
       syncQueue: (tracks, sourceId) => {
-        const { queueSourceId, currentTrack } = get();
+        const { queueSourceId, currentTrack, shuffleEnabled } = get();
         if (queueSourceId !== sourceId) return;
 
         const newIndex = tracks.findIndex((t) => t.id === currentTrack?.id);
-        set({
-          queue: tracks,
-          queueIndex: newIndex !== -1 ? newIndex : 0,
-        });
+        
+        if (shuffleEnabled) {
+          set({ originalQueue: tracks });
+        } else {
+          set({
+            originalQueue: tracks,
+            queue: tracks,
+            queueIndex: newIndex !== -1 ? newIndex : 0,
+          });
+        }
       },
 
       // ── Library ─────────────────────────────────────────────────────────────
@@ -311,6 +320,7 @@ export const useStore = create<Store>()(
           tracks: s.tracks.map((t) => (t.id === updated.id ? updated : t)),
           currentTrack: s.currentTrack?.id === updated.id ? updated : s.currentTrack,
           queue: s.queue.map((t) => (t.id === updated.id ? updated : t)),
+          originalQueue: s.originalQueue.map((t) => (t.id === updated.id ? updated : t)),
         })),
       addTracks: (incoming) => {
         const existing = get().tracks;
@@ -342,7 +352,7 @@ export const useStore = create<Store>()(
       setCoversDir: (dir) => set({ coversDir: dir }),
       setDiscordCoverCache: (id, url) => set((s) => ({ discordCoverCache: { ...s.discordCoverCache, [id]: url } })),
       removeTrack: (id) => {
-        const { tracks, playlists, currentTrack, queue, queueIndex } = get();
+        const { tracks, playlists, currentTrack, queue, originalQueue, queueIndex } = get();
         
         // Remove from playlists
         const updatedPlaylists = playlists.map(pl => ({
@@ -352,6 +362,7 @@ export const useStore = create<Store>()(
 
         // Remove from queue
         const updatedQueue = queue.filter(t => t.id !== id);
+        const updatedOriginalQueue = originalQueue.filter(t => t.id !== id);
         let newIndex = queueIndex;
         let newCurrent = currentTrack;
 
@@ -375,6 +386,7 @@ export const useStore = create<Store>()(
           tracks: tracks.filter(t => t.id !== id),
           playlists: updatedPlaylists,
           queue: updatedQueue,
+          originalQueue: updatedOriginalQueue,
           queueIndex: newIndex,
           currentTrack: newCurrent,
         });
@@ -464,7 +476,7 @@ export const useStore = create<Store>()(
       setVolume: (v) => set({ volume: v }),
       setRepeatMode: (m) => set({ repeatMode: m }),
       toggleShuffle: () => {
-        const { shuffleEnabled, queue, queueIndex } = get();
+        const { shuffleEnabled, queue, queueIndex, originalQueue, currentTrack } = get();
         const nextShuffle = !shuffleEnabled;
         
         if (nextShuffle && queue.length > 0) {
@@ -474,10 +486,16 @@ export const useStore = create<Store>()(
           const shuffled = [...played, ...shuffleArray(remaining)];
           set({ queue: shuffled, shuffleEnabled: nextShuffle });
         } else {
-          // In a real app we'd restore the original order, 
-          // but for now we just toggle the state.
-          // The next time a song is played from a list, the queue is reset anyway.
-          set({ shuffleEnabled: nextShuffle });
+          if (originalQueue.length > 0) {
+            const newIndex = originalQueue.findIndex(t => t.id === currentTrack?.id);
+            set({
+              queue: [...originalQueue],
+              queueIndex: newIndex !== -1 ? newIndex : 0,
+              shuffleEnabled: nextShuffle
+            });
+          } else {
+            set({ shuffleEnabled: nextShuffle });
+          }
         }
       },
       setGuiScale: (s) => set({ guiScale: s }),

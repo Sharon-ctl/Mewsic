@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
   Palette, FolderOpen, RefreshCw, Trash2, Check, RotateCcw,
   Info, Music2, Volume2, FolderInput, Sun, Moon, Keyboard, Monitor, Share2, MessageSquare, Bell, Zap, FileUp, FolderPlus, Database, Power,
-  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud
+  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List
 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
@@ -69,6 +69,12 @@ export function SettingsView() {
     lowEndMode,
     setLowEndMode,
     clearDiscordCoverCache,
+    libraryViewMode,
+    setLibraryViewMode,
+    homeViewMode,
+    setHomeViewMode,
+    playlistViewMode,
+    setPlaylistViewMode,
   } = useStore(useShallow((s) => ({
     accentColor: s.accentColor,
     volume: s.volume,
@@ -92,6 +98,12 @@ export function SettingsView() {
     lowEndMode: s.lowEndMode,
     setLowEndMode: s.setLowEndMode,
     clearDiscordCoverCache: s.clearDiscordCoverCache,
+    libraryViewMode: s.libraryViewMode,
+    setLibraryViewMode: s.setLibraryViewMode,
+    homeViewMode: s.homeViewMode,
+    setHomeViewMode: s.setHomeViewMode,
+    playlistViewMode: s.playlistViewMode,
+    setPlaylistViewMode: s.setPlaylistViewMode,
   })));
 
   const { displayTracks, displayMusicDir, displayPlaylistsDir } = useDisplayData();
@@ -497,6 +509,60 @@ export function SettingsView() {
                 <p className="text-[9px] text-text-muted leading-relaxed italic">
                   Auto-update checks are performed on startup. You can manually trigger a check here to ensure you have the latest features and security patches.
                 </p>
+              </div>
+            </div>
+          </Section>
+
+          {/* Default Layouts */}
+          <Section icon={<LayoutGrid size={16} />} title="Default Layouts">
+            <div className="space-y-4 h-full flex flex-col">
+              <div className="grid grid-cols-1 gap-2">
+                
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface-overlay border border-border-subtle group hover:border-accent/30 transition-all">
+                  <div>
+                    <p className="text-[13px] font-medium text-text-primary leading-none">Home View</p>
+                    <p className="text-[9px] text-text-muted mt-1">Dashboard presentation</p>
+                  </div>
+                  <div className="flex gap-1 p-1 bg-surface-raised rounded-lg border border-border-subtle">
+                    <button onClick={() => setHomeViewMode("grid")} className={`p-1.5 rounded-md transition-all ${homeViewMode === "grid" ? "bg-accent text-black shadow-accent" : "text-text-muted hover:text-text-primary"}`}>
+                      <LayoutGrid size={14} />
+                    </button>
+                    <button onClick={() => setHomeViewMode("list")} className={`p-1.5 rounded-md transition-all ${homeViewMode === "list" ? "bg-accent text-black shadow-accent" : "text-text-muted hover:text-text-primary"}`}>
+                      <List size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface-overlay border border-border-subtle group hover:border-accent/30 transition-all">
+                  <div>
+                    <p className="text-[13px] font-medium text-text-primary leading-none">Library View</p>
+                    <p className="text-[9px] text-text-muted mt-1">Local tracks presentation</p>
+                  </div>
+                  <div className="flex gap-1 p-1 bg-surface-raised rounded-lg border border-border-subtle">
+                    <button onClick={() => setLibraryViewMode("grid")} className={`p-1.5 rounded-md transition-all ${libraryViewMode === "grid" ? "bg-accent text-black shadow-accent" : "text-text-muted hover:text-text-primary"}`}>
+                      <LayoutGrid size={14} />
+                    </button>
+                    <button onClick={() => setLibraryViewMode("list")} className={`p-1.5 rounded-md transition-all ${libraryViewMode === "list" ? "bg-accent text-black shadow-accent" : "text-text-muted hover:text-text-primary"}`}>
+                      <List size={14} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-surface-overlay border border-border-subtle group hover:border-accent/30 transition-all">
+                  <div>
+                    <p className="text-[13px] font-medium text-text-primary leading-none">Playlist View</p>
+                    <p className="text-[9px] text-text-muted mt-1">Collection presentation</p>
+                  </div>
+                  <div className="flex gap-1 p-1 bg-surface-raised rounded-lg border border-border-subtle">
+                    <button onClick={() => setPlaylistViewMode("grid")} className={`p-1.5 rounded-md transition-all ${playlistViewMode === "grid" ? "bg-accent text-black shadow-accent" : "text-text-muted hover:text-text-primary"}`}>
+                      <LayoutGrid size={14} />
+                    </button>
+                    <button onClick={() => setPlaylistViewMode("list")} className={`p-1.5 rounded-md transition-all ${playlistViewMode === "list" ? "bg-accent text-black shadow-accent" : "text-text-muted hover:text-text-primary"}`}>
+                      <List size={14} />
+                    </button>
+                  </div>
+                </div>
+
               </div>
             </div>
           </Section>

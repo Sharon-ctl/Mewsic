@@ -175,6 +175,8 @@ export function Sidebar() {
                   activePlaylistId === pl.id ? "active" : ""
                 }`}
                 title={pl.name}
+                data-playlist-id={pl.id}
+                data-context="playlist-item"
               >
                 <div className="w-5 h-5 rounded-md bg-accent-muted flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {pl.coverArt ? (

@@ -22,6 +22,7 @@ import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
 import type { Track, AudioPreset } from "../../types";
+import { EditPlaylistModal } from "../Library/EditPlaylistModal";
 
 interface ContextMenuItemProps {
   icon: React.ReactNode;
@@ -66,14 +67,16 @@ export function ContextMenu() {
   const [canPaste, setCanPaste] = useState(false);
   const [contextTrack, setContextTrack] = useState<Track | null>(null);
   const [contextPresetId, setContextPresetId] = useState<string | null>(null);
-  const [contextType, setContextType] = useState<"library" | "playlist" | "audio-preset" | null>(null);
+  const [contextPlaylistId, setContextPlaylistId] = useState<string | null>(null);
+  const [editingPlaylistId, setEditingPlaylistId] = useState<string | null>(null);
+  const [contextType, setContextType] = useState<"library" | "playlist" | "audio-preset" | "playlist-item" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const {
     isPlaying, setIsPlaying, playNext, playPrev, requestSeek, currentTrack,
     setShowAbout, tracks, setAddTrack, setEditTrack, setDeleteTrack,
     activePlaylistId, playlists, goBack, goForward, historyIndex, history,
-    deletePreset, updatePresetSettings, setRenamePresetId, addNotification
+    deletePreset, updatePresetSettings, setRenamePresetId, addNotification, setQueue
   } = useStore(useShallow((s) => ({
     isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying, playNext: s.playNext,
     playPrev: s.playPrev, requestSeek: s.requestSeek, currentTrack: s.currentTrack,
@@ -82,13 +85,13 @@ export function ContextMenu() {
     activePlaylistId: s.activePlaylistId, playlists: s.playlists,
     goBack: s.goBack, goForward: s.goForward, historyIndex: s.historyIndex, history: s.history,
     deletePreset: s.deletePreset, updatePresetSettings: s.updatePresetSettings, setRenamePresetId: s.setRenamePresetId,
-    addNotification: s.addNotification
+    addNotification: s.addNotification, setQueue: s.setQueue
   })));
 
   const canGoBack = historyIndex > 0;
   const canGoForward = historyIndex < history.length - 1;
 
-  const { removeTrackFromPlaylist } = useLibrary();
+  const { removeTrackFromPlaylist, removePlaylistData } = useLibrary();
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
@@ -112,9 +115,18 @@ export function ContextMenu() {
         if (presetEl) {
           setContextPresetId(presetEl.getAttribute("data-preset-id"));
           setContextType("audio-preset");
+          setContextPlaylistId(null);
         } else {
           setContextPresetId(null);
-          setContextType(null);
+          
+          const playlistEl = target.closest("[data-playlist-id]");
+          if (playlistEl) {
+            setContextPlaylistId(playlistEl.getAttribute("data-playlist-id"));
+            setContextType("playlist-item");
+          } else {
+            setContextPlaylistId(null);
+            setContextType(null);
+          }
         }
       }
 
@@ -162,7 +174,7 @@ export function ContextMenu() {
     }
   }, [visible, position]);
 
-  if (!visible) return null;
+  if (!visible && !editingPlaylistId) return null;
 
   const handleRestart = () => {
     if (currentTrack) requestSeek(0);
@@ -193,6 +205,29 @@ export function ContextMenu() {
     await toggleFullscreen();
   };
 
+  const handlePlayPlaylist = () => {
+    if (!contextPlaylistId) return;
+    const pl = playlists.find(p => p.id === contextPlaylistId);
+    if (!pl) return;
+    const trackMap = new Map(tracks.map(t => [t.id, t]));
+    const plTracks = pl.trackIds.map(id => trackMap.get(id)).filter(Boolean) as Track[];
+    if (plTracks.length > 0) {
+      setQueue(plTracks, 0, pl.id);
+      setIsPlaying(true);
+    }
+    setVisible(false);
+  };
+
+  const handleDeletePlaylist = async () => {
+    if (!contextPlaylistId) return;
+    const pl = playlists.find(p => p.id === contextPlaylistId);
+    if (!pl) return;
+    if (confirm(`Delete playlist "${pl.name}"?`)) {
+      await removePlaylistData(pl);
+    }
+    setVisible(false);
+  };
+
   const handleRemoveFromPlaylist = async () => {
     if (!contextTrack || !activePlaylistId) return;
     const playlist = playlists.find(p => p.id === activePlaylistId);
@@ -203,8 +238,10 @@ export function ContextMenu() {
   };
 
   return (
-    <div
-      ref={menuRef}
+    <>
+      {visible && (
+        <div
+          ref={menuRef}
       className="fixed z-[9999] min-w-[240px] glass-heavy p-1.5 rounded-2xl border border-border-glass shadow-[0_20px_50px_rgba(0,0,0,0.4)] animate-scale-in"
       style={{
         left: position.x,
@@ -279,6 +316,27 @@ export function ContextMenu() {
               icon={<Trash2 size={16} />}
               label="Delete from Disk"
               onClick={() => { setDeleteTrack(contextTrack); setVisible(false); }}
+              danger
+            />
+            <Divider />
+          </>
+        ) : contextType === "playlist-item" && contextPlaylistId ? (
+          <>
+            <ContextMenuItem
+              icon={<Play size={16} />}
+              label="Play Playlist"
+              onClick={handlePlayPlaylist}
+            />
+            <ContextMenuItem
+              icon={<Pencil size={16} />}
+              label="Edit Playlist"
+              onClick={() => { setEditingPlaylistId(contextPlaylistId); setVisible(false); }}
+            />
+            <Divider />
+            <ContextMenuItem
+              icon={<Trash2 size={16} />}
+              label="Delete Playlist"
+              onClick={handleDeletePlaylist}
               danger
             />
             <Divider />
@@ -361,5 +419,13 @@ export function ContextMenu() {
         />
       </div>
     </div>
+      )}
+      {editingPlaylistId && (
+        <EditPlaylistModal
+          playlist={playlists.find(p => p.id === editingPlaylistId)!}
+          onClose={() => setEditingPlaylistId(null)}
+        />
+      )}
+    </>
   );
 }

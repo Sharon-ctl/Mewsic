@@ -138,11 +138,20 @@ export function PlaylistView() {
     setIsPlaying(true);
   };
 
-  const handleShuffle = useCallback(() => {
+  const handleShuffle = useCallback(async () => {
     if (!playlistTracks.length) return;
-    setQueue(shuffleArray(playlistTracks), 0, playlist.id);
-    setIsPlaying(true);
-  }, [playlistTracks.length, playlist.id]);
+    
+    const shuffledTracks = shuffleArray([...playlistTracks]);
+    const shuffledIds = shuffledTracks.map((t) => t.id);
+
+    // Sync the player queue if it's currently playing this playlist
+    useStore.getState().syncQueue(shuffledTracks, playlist.id);
+
+    await updatePlaylistData({
+      ...playlist,
+      trackIds: shuffledIds,
+    });
+  }, [playlistTracks, playlist, updatePlaylistData]);
 
   const handleDelete = async () => {
     if (!confirm(`Delete playlist "${playlist.name}"?`)) return;

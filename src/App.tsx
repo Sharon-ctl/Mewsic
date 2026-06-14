@@ -30,6 +30,7 @@ import { deleteTrack } from "./utils/tauriApi";
 import { TitleBar } from "./components/UI/TitleBar";
 import { Cyberdeck } from "./components/UI/Cyberdeck";
 import { DevOverlay } from "./components/UI/DevOverlay";
+import { GlobalTooltip } from "./components/UI/GlobalTooltip";
 function ViewRouter() {
   const { activeView } = useStore(useShallow((s) => ({ activeView: s.activeView })));
 
@@ -378,6 +379,9 @@ export default function App() {
       {showCyberdeck && (
         <Cyberdeck onClose={() => setShowCyberdeck(false)} />
       )}
+
+      {/* Custom Global Tooltip overlay */}
+      <GlobalTooltip />
     </div>
   );
 }
