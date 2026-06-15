@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Volume2,
   Zap,
@@ -20,6 +20,7 @@ import {
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { ThemedSlider } from "../UI/ThemedSlider";
+import { useSmoothScroll } from "../../hooks/useSmoothScroll";
 
 export function AudioView() {
   const {
@@ -83,6 +84,9 @@ export function AudioView() {
   const [presetName, setPresetName] = useState("");
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  useSmoothScroll(containerRef);
 
   const handleSavePreset = () => {
     if (!presetName.trim()) return;
@@ -149,7 +153,7 @@ export function AudioView() {
       </header>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
 
           {/* Presets Section */}

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Mewsic",
-  "version": "0.8.9",
+  "version": "0.9.0",
   "identifier": "dev.xeoniii.mewsic",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -11,7 +11,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "appimage", "deb", "rpm", "dmg", "app"],
+    "targets": [
+      "msi",
+      "appimage",
+      "deb",
+      "rpm",
+      "dmg",
+      "app"
+    ],
     "createUpdaterArtifacts": true,
     "publisher": "xeoniii",
     "copyright": "Copyright © 2026 xeoniii",
@@ -67,14 +74,16 @@
       "csp": "default-src 'self'; media-src 'self' asset: http://asset.localhost https://asset.localhost http://127.0.0.1:1422 http://localhost:1422; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost http://127.0.0.1:1422 http://localhost:1422 https://*.mzstatic.com https://*.saavncdn.com https://*.ytimg.com https://*.googleusercontent.com",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/xeoniii/Mewsic/releases/latest/download/latest.json"
+        "https://raw.githubusercontent.com/xeoniii/Mewsic/main/updater.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIzMTQ3Qzg3QzhDQzc2NEYKUldSUGRzekloM3dVczA5ZE4xd0J2N0FJMWlIRjhaZ0ppb1F5czU3VForU092REVzR0dDbkMzNVIK"
     }

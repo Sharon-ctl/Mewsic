@@ -26,6 +26,25 @@ function parseLRC(text: string): LyricLine[] {
   return lines;
 }
 
+function animateScrollLerp(element: HTMLDivElement, target: number, speed: number = 0.08) {
+  let frameId: number;
+  
+  const step = () => {
+    const current = element.scrollTop;
+    const diff = target - current;
+    
+    if (Math.abs(diff) < 0.5) {
+      element.scrollTop = target;
+    } else {
+      element.scrollTop = current + diff * speed;
+      frameId = requestAnimationFrame(step);
+    }
+  };
+  
+  frameId = requestAnimationFrame(step);
+  return () => cancelAnimationFrame(frameId);
+}
+
 export function Lyrics({ 
   autoScroll = true,
   isSyncMode = false,
@@ -45,6 +64,7 @@ export function Lyrics({
   const containerRef = useRef<HTMLDivElement>(null);
   const timeDisplayRef = useRef<HTMLSpanElement>(null);
   const currentTimeRef = useRef(0);
+  const scrollAnimRef = useRef<(() => void) | null>(null);
 
   const lyrics = currentTrack?.lyrics;
 
@@ -96,8 +116,26 @@ export function Lyrics({
   // Handle smooth scrolling
   useEffect(() => {
     if (autoScroll && isSynced && activeRef.current && containerRef.current && !isSyncMode) {
-      activeRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      const container = containerRef.current;
+      const activeEl = activeRef.current;
+
+      const containerHeight = container.clientHeight;
+      const activeHeight = activeEl.clientHeight;
+      const activeTop = activeEl.offsetTop;
+      const targetTop = activeTop - (containerHeight / 2) + (activeHeight / 2);
+
+      if (scrollAnimRef.current) {
+        scrollAnimRef.current();
+      }
+
+      scrollAnimRef.current = animateScrollLerp(container, targetTop, 0.08);
     }
+
+    return () => {
+      if (scrollAnimRef.current) {
+        scrollAnimRef.current();
+      }
+    };
   }, [activeIndex, isSynced, autoScroll, isSyncMode]);
 
   if (isSyncMode && setSyncLines) {
@@ -170,20 +208,22 @@ export function Lyrics({
         <div
           key={i}
           ref={i === activeIndex ? activeRef : undefined}
-          className={`py-3 flex items-center justify-center rounded-xl transition-colors mx-4 ${isSynced ? "cursor-pointer hover:bg-surface-raised/30 group" : ""}`}
-          onClick={() => isSynced && requestSeek(line.time)}
+          className="py-1 flex justify-center"
         >
-          <p
-            className={`text-base px-6 text-center transition-all duration-300 ${
+          <span
+            onClick={() => isSynced && requestSeek(line.time)}
+            className={`text-base px-6 py-2.5 text-center rounded-xl transition-all duration-300 inline-block max-w-[90%] ${
+              isSynced ? "cursor-pointer hover:bg-surface-raised/30 hover:scale-[1.02] active:scale-[0.98]" : ""
+            } ${
               !isSynced
                 ? "text-text-primary"
                 : i === activeIndex
-                ? "text-accent font-semibold scale-110"
-                : "text-text-muted/50 group-hover:text-text-primary"
+                ? "text-accent font-semibold scale-105"
+                : "text-text-muted/50 hover:text-text-primary"
             }`}
           >
             {line.text}
-          </p>
+          </span>
         </div>
       ))}
     </div>

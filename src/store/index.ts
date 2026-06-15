@@ -119,13 +119,10 @@ interface UISlice {
   audioPresets: AudioPreset[];
   activePresetId: string | null;
   renamePresetId: string | null;
-  libraryListScrollOffset: number;
-  libraryGridScrollOffset: number;
   playlistScrollOffsets: Record<string, number>;
+  smoothScrollEnabled: boolean;
 
   setActiveView: (v: ViewId, skipHistory?: boolean) => void;
-  setLibraryListScrollOffset: (offset: number) => void;
-  setLibraryGridScrollOffset: (offset: number) => void;
   setPlaylistScrollOffset: (playlistId: string, offset: number) => void;
   setActivePlaylist: (id: string | null, skipHistory?: boolean) => void;
   setSearchQuery: (q: string) => void;
@@ -174,6 +171,7 @@ interface UISlice {
   resetShortcuts: () => void;
   goBack: () => void;
   goForward: () => void;
+  setSmoothScrollEnabled: (v: boolean) => void;
 
 
 
@@ -443,9 +441,8 @@ export const useStore = create<Store>()(
         }
       ],
       activePresetId: "flat",
-      libraryListScrollOffset: 0,
-      libraryGridScrollOffset: 0,
       playlistScrollOffsets: {},
+      smoothScrollEnabled: true,
 
       setActiveView: (v, skipHistory = false) => {
         const { history, historyIndex } = get();
@@ -516,6 +513,7 @@ export const useStore = create<Store>()(
         );
       },
       clearDiscordCoverCache: () => set({ discordCoverCache: {} }),
+      setSmoothScrollEnabled: (v) => set({ smoothScrollEnabled: v }),
       
       shortcuts: {
         togglePlay: { key: "Space", ctrl: false, shift: false, alt: false },
@@ -561,8 +559,6 @@ export const useStore = create<Store>()(
       setLibraryViewMode: (m) => set({ libraryViewMode: m }),
       setHomeViewMode: (m) => set({ homeViewMode: m }),
       setPlaylistViewMode: (m) => set({ playlistViewMode: m }),
-      setLibraryListScrollOffset: (offset) => set({ libraryListScrollOffset: offset }),
-      setLibraryGridScrollOffset: (offset) => set({ libraryGridScrollOffset: offset }),
       setPlaylistScrollOffset: (playlistId, offset) => set((s) => ({
         playlistScrollOffsets: { ...s.playlistScrollOffsets, [playlistId]: offset }
       })),
@@ -730,9 +726,8 @@ export const useStore = create<Store>()(
         eqGains: s.eqGains,
         audioPresets: s.audioPresets,
         activePresetId: s.activePresetId,
-        libraryListScrollOffset: s.libraryListScrollOffset,
-        libraryGridScrollOffset: s.libraryGridScrollOffset,
         playlistScrollOffsets: s.playlistScrollOffsets,
+        smoothScrollEnabled: s.smoothScrollEnabled,
       }),
     }
   )

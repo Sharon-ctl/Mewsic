@@ -59,7 +59,7 @@ export function PlayerBar() {
     toggleMute: s.toggleMute,
   })));
 
-  const { togglePlay } = useAudioPlayer();
+  const { togglePlay, seek } = useAudioPlayer();
 
   const handleVolumeChange = useCallback(
     (val: number) => {
@@ -181,7 +181,7 @@ export function PlayerBar() {
         </div>
 
         {/* Seek bar row */}
-        <SeekBarRow duration={duration} />
+        <SeekBarRow duration={duration} seek={seek} />
       </div>
 
       {/* ── Volume (Right) ────────────────────────────────────────────────────────── */}
@@ -213,10 +213,9 @@ export function PlayerBar() {
 }
 
 // Subcomponent to isolate the 20fps re-renders to just the progress bar
-function SeekBarRow({ duration }: { duration: number }) {
+function SeekBarRow({ duration, seek }: { duration: number, seek: (time: number) => void }) {
   const currentTime = useStore(s => s.currentTime);
   const currentTrack = useStore(s => s.currentTrack);
-  const { seek } = useAudioPlayer();
 
   return (
     <div className="flex items-center gap-2 w-full max-w-xl">

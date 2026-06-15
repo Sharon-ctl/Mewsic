@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Palette, FolderOpen, RefreshCw, Trash2, Check, RotateCcw,
   Info, Music2, Volume2, FolderInput, Sun, Moon, Keyboard, Monitor, Share2, MessageSquare, Bell, Zap, FileUp, FolderPlus, Database, Power,
-  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List
+  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List, Sliders
 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
@@ -12,6 +12,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
 import { clearImageCache, getOSName } from "../../utils/tauriApi";
 import { ACCENT_PRESETS } from "../../utils/helpers";
+import { useSmoothScroll } from "../../hooks/useSmoothScroll";
 import { ConfirmationModal } from "../UI/ConfirmationModal";
 import { UpdateModal } from "../UI/UpdateModal";
 import { ThemedSlider } from "../UI/ThemedSlider";
@@ -75,6 +76,8 @@ export function SettingsView() {
     setHomeViewMode,
     playlistViewMode,
     setPlaylistViewMode,
+    smoothScrollEnabled = true,
+    setSmoothScrollEnabled,
   } = useStore(useShallow((s) => ({
     accentColor: s.accentColor,
     volume: s.volume,
@@ -104,6 +107,8 @@ export function SettingsView() {
     setHomeViewMode: s.setHomeViewMode,
     playlistViewMode: s.playlistViewMode,
     setPlaylistViewMode: s.setPlaylistViewMode,
+    smoothScrollEnabled: s.smoothScrollEnabled,
+    setSmoothScrollEnabled: s.setSmoothScrollEnabled,
   })));
 
   const { displayTracks, displayMusicDir, displayPlaylistsDir } = useDisplayData();
@@ -125,6 +130,9 @@ export function SettingsView() {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [appVersion, setAppVersion] = useState<string>("0.8.4");
   const [localGuiScale, setLocalGuiScale] = useState(guiScale);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  useSmoothScroll(containerRef);
 
   useEffect(() => {
     getVersion().then(setAppVersion).catch(() => {});
@@ -188,7 +196,7 @@ export function SettingsView() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div ref={containerRef} className="flex flex-col h-full overflow-y-auto">
       <div className="px-8 py-6 border-b border-border-subtle flex-shrink-0">
         <h1 className="font-display font-bold text-2xl text-text-primary">Settings</h1>
         <p className="text-text-muted text-sm mt-1">
@@ -476,6 +484,20 @@ export function SettingsView() {
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" className="sr-only peer" checked={customTitlebar} onChange={(e) => { setCustomTitlebar(e.target.checked); setShowRestartModal(true); }} />
+                    <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-border-subtle" />
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-overlay border border-border-subtle">
+                  <div className="flex items-center gap-2.5">
+                    <Sliders size={14} className={smoothScrollEnabled ? "text-accent" : "text-text-muted"} />
+                    <div>
+                      <p className="text-[13px] font-medium text-text-primary leading-none">Smooth Scrolling</p>
+                      <p className="text-[9px] text-text-muted mt-1">Silky inertia scrolling on pages</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={smoothScrollEnabled} onChange={(e) => setSmoothScrollEnabled(e.target.checked)} />
                     <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-border-subtle" />
                   </label>
                 </div>

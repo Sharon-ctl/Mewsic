@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Search, Download, Music, Loader2, Globe, AlertCircle, ChevronDown, Check, Terminal, Youtube, Link as LinkIcon, Send, FileAudio, FileVideo, Zap, PlusCircle } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useLibrary } from "../../hooks/useLibrary";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
+import { useSmoothScroll } from "../../hooks/useSmoothScroll";
 
 interface HarbourSearchResult {
   id: string;
@@ -19,6 +20,9 @@ interface HarbourSearchResult {
 export default function HarbourView() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<HarbourSearchResult[]>([]);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  useSmoothScroll(containerRef);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
@@ -257,7 +261,7 @@ export default function HarbourView() {
       </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div ref={containerRef} className="flex-1 overflow-y-auto p-6">
         {loading && results.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted">
             <Loader2 size={48} className="animate-spin text-accent" />

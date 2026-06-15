@@ -9,10 +9,15 @@ export function TitleBar() {
   const isFullscreen = useStore((s) => s.isFullscreen);
   const [showTitlebar] = useState(initialCustomTitlebar);
   const [isMaximized, setIsMaximized] = useState(false);
-  const appWindow = getCurrentWindow();
+  let appWindow: any = null;
+  try {
+    appWindow = getCurrentWindow();
+  } catch (e) {
+    console.warn("TitleBar: failed to get app window", e);
+  }
 
   useEffect(() => {
-    if (!showTitlebar || isFullscreen) return;
+    if (!showTitlebar || isFullscreen || !appWindow) return;
 
     const updateMaximized = async () => {
       try {
@@ -23,12 +28,19 @@ export function TitleBar() {
 
     updateMaximized();
 
-    const unlisten = appWindow.onResized(() => {
-      updateMaximized();
-    });
+    let unlisten: Promise<any> | null = null;
+    try {
+      unlisten = appWindow.onResized(() => {
+        updateMaximized();
+      });
+    } catch (e) {
+      console.warn("TitleBar: failed to bind onResized listener", e);
+    }
 
     return () => {
-      unlisten.then((fn) => fn());
+      if (unlisten) {
+        unlisten.then((fn: any) => fn());
+      }
     };
   }, [showTitlebar, appWindow]);
 

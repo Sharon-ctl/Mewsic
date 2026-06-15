@@ -103,7 +103,7 @@ export function AboutModal() {
               Build {getBuildId()} • {getOSName()}
             </p>
             <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              11,583 Lines of code!
+              12,525 Lines of code!
             </p>
           </div>
         </div>

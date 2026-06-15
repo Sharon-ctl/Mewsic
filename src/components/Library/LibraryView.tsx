@@ -19,12 +19,14 @@ type SortKey = "title" | "artist" | "album" | "duration";
 
 const ListContent = memo(function ListContent({
   tracks,
+  allTracks,
   onAddToPlaylist,
   onEditMetadata,
   onDelete,
   height,
 }: {
   tracks: Track[];
+  allTracks: Track[];
   onAddToPlaylist: (track: Track) => void;
   onEditMetadata: (track: Track) => void;
   onDelete: (track: Track) => void;
@@ -40,8 +42,8 @@ const ListContent = memo(function ListContent({
           <MusicCard
             key={track.id}
             track={track}
-            allTracks={tracks}
-            trackIndex={props.index}
+            allTracks={allTracks}
+            trackIndex={allTracks.findIndex(t => t.id === track.id)}
             sourceId="library"
             viewMode="list"
             onAddToPlaylist={onAddToPlaylist}
@@ -54,38 +56,15 @@ const ListContent = memo(function ListContent({
     [tracks, onAddToPlaylist, onEditMetadata, onDelete]
   );
 
-  const listRef = useRef<any>(null);
-  const isRestoringRef = useRef(true);
-  const hasRestoredRef = useRef(false);
-
-  useEffect(() => {
-    if (hasRestoredRef.current) return;
-    if (listRef.current && tracks.length > 0 && height > 0) {
-      const saved = useStore.getState().libraryListScrollOffset;
-      listRef.current.scrollTo(saved);
-      hasRestoredRef.current = true;
-      setTimeout(() => {
-        isRestoringRef.current = false;
-      }, 100);
-    }
-  }, [tracks.length, height]);
-
-  const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number }) => {
-    if (isRestoringRef.current) return;
-    useStore.getState().setLibraryListScrollOffset(scrollOffset);
-  }, []);
-
   const VListElement = VList as any;
   return (
     <VListElement
-      ref={listRef}
       style={{ height }}
       rowComponent={RowComponent as any}
       rowCount={tracks.length}
       rowHeight={LIST_ITEM_HEIGHT}
       rowProps={{} as any}
       overscanCount={5}
-      onScroll={handleScroll as any}
     />
   );
 });
@@ -94,6 +73,7 @@ const GRID_PAGE_SIZE = 60;
 
 const GridContent = memo(function GridContent({
   tracks,
+  allTracks,
   onAddToPlaylist,
   onEditMetadata,
   onDelete,
@@ -101,6 +81,7 @@ const GridContent = memo(function GridContent({
   height,
 }: {
   tracks: Track[];
+  allTracks: Track[];
   onAddToPlaylist: (track: Track) => void;
   onEditMetadata: (track: Track) => void;
   onDelete: (track: Track) => void;
@@ -133,8 +114,8 @@ const GridContent = memo(function GridContent({
               <MusicCard
                 key={track.id}
                 track={track}
-                allTracks={tracks}
-                trackIndex={startIndex + i}
+                allTracks={allTracks}
+                trackIndex={allTracks.findIndex(t => t.id === track.id)}
                 sourceId="library"
                 viewMode="grid"
                 onAddToPlaylist={onAddToPlaylist}
@@ -149,38 +130,15 @@ const GridContent = memo(function GridContent({
     [tracks, columns, onAddToPlaylist, onEditMetadata, onDelete]
   );
 
-  const listRef = useRef<any>(null);
-  const isRestoringRef = useRef(true);
-  const hasRestoredRef = useRef(false);
-
-  useEffect(() => {
-    if (hasRestoredRef.current) return;
-    if (listRef.current && tracks.length > 0 && height > 0) {
-      const saved = useStore.getState().libraryGridScrollOffset;
-      listRef.current.scrollTo(saved);
-      hasRestoredRef.current = true;
-      setTimeout(() => {
-        isRestoringRef.current = false;
-      }, 100);
-    }
-  }, [tracks.length, height]);
-
-  const handleScroll = useCallback(({ scrollOffset }: { scrollOffset: number }) => {
-    if (isRestoringRef.current) return;
-    useStore.getState().setLibraryGridScrollOffset(scrollOffset);
-  }, []);
-
   const VListElement = VList as any;
   return (
     <VListElement
-      ref={listRef}
       style={{ height, width: "100%" }}
       rowComponent={RowComponent as any}
       rowCount={rowCount}
       rowHeight={rowHeight}
       rowProps={{} as any}
       overscanCount={2}
-      onScroll={handleScroll as any}
     />
   );
 });
@@ -283,17 +241,8 @@ export function LibraryView() {
     }
   };
 
-  const filtered = useMemo(() => {
-    const q = localSearch.toLowerCase();
-    let list = q
-      ? displayTracks.filter(
-          (t) =>
-            t.title.toLowerCase().includes(q) ||
-            t.artist.toLowerCase().includes(q) ||
-            t.album.toLowerCase().includes(q)
-        )
-      : [...displayTracks];
-
+  const sortedLibrary = useMemo(() => {
+    const list = [...displayTracks];
     list.sort((a, b) => {
       const av = String(a[sortKey] ?? "");
       const bv = String(b[sortKey] ?? "");
@@ -302,7 +251,18 @@ export function LibraryView() {
       return a.id.localeCompare(b.id);
     });
     return list;
-  }, [displayTracks, localSearch, sortKey, sortAsc]);
+  }, [displayTracks, sortKey, sortAsc]);
+
+  const filtered = useMemo(() => {
+    const q = localSearch.toLowerCase();
+    if (!q) return sortedLibrary;
+    return sortedLibrary.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artist.toLowerCase().includes(q) ||
+        t.album.toLowerCase().includes(q)
+    );
+  }, [sortedLibrary, localSearch]);
 
 
 
@@ -398,12 +358,20 @@ export function LibraryView() {
           </div>
         ) : libraryViewMode === "list" ? (
           <div className="px-8 pb-4 h-full">
-            <ListContent tracks={filtered} onAddToPlaylist={handleAddToPlaylist} onEditMetadata={handleEditMetadata} onDelete={handleDeleteTrack} height={listHeight} />
+            <ListContent
+              tracks={filtered}
+              allTracks={sortedLibrary}
+              onAddToPlaylist={handleAddToPlaylist}
+              onEditMetadata={handleEditMetadata}
+              onDelete={handleDeleteTrack}
+              height={listHeight}
+            />
           </div>
         ) : (
           <div className="h-full">
             <GridContent 
               tracks={filtered} 
+              allTracks={sortedLibrary}
               onAddToPlaylist={handleAddToPlaylist} 
               onEditMetadata={handleEditMetadata} 
               onDelete={handleDeleteTrack} 

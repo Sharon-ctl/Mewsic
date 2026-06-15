@@ -32,6 +32,8 @@ import type { Track } from "../../types";
 
 import { useDisplayData } from "../../hooks/useDisplayData";
 
+import { useSmoothScroll } from "../../hooks/useSmoothScroll";
+
 export function PlaylistView() {
   const {
     activePlaylistId,
@@ -79,22 +81,36 @@ export function PlaylistView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const isRestoringRef = useRef(false);
 
+  useSmoothScroll(containerRef);
+
   useEffect(() => {
+    if (!activePlaylistId) return;
     isRestoringRef.current = true;
-    const restoreScroll = () => {
-      if (containerRef.current && activePlaylistId) {
-        const saved = useStore.getState().playlistScrollOffsets[activePlaylistId] || 0;
+    const saved = useStore.getState().playlistScrollOffsets[activePlaylistId] || 0;
+    let attempts = 0;
+    let frame: number;
+    let timer: any;
+
+    const tryRestore = () => {
+      if (containerRef.current) {
         containerRef.current.scrollTop = saved;
       }
-      setTimeout(() => {
-        isRestoringRef.current = false;
-      }, 50);
+      
+      if (attempts < 5) {
+        attempts++;
+        frame = requestAnimationFrame(tryRestore);
+      } else {
+        timer = setTimeout(() => {
+          isRestoringRef.current = false;
+        }, 150);
+      }
     };
 
-    restoreScroll();
-    const frame = requestAnimationFrame(restoreScroll);
+    tryRestore();
+
     return () => {
       cancelAnimationFrame(frame);
+      clearTimeout(timer);
     };
   }, [activePlaylistId]);
 

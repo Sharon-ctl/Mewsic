@@ -1,9 +1,10 @@
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useRef } from "react";
 import { Play, Music2, Disc3, Clock, FolderOpen, Shuffle, ChevronRight, List, LayoutGrid } from "lucide-react";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { MusicCard } from "./MusicCard";
 import { formatDuration, formatPreciseDuration, pluralize, shuffleArray } from "../../utils/helpers";
+import { useSmoothScroll } from "../../hooks/useSmoothScroll";
 
 function StatCard({
   icon,
@@ -42,6 +43,9 @@ export function HomeView() {
       homeViewMode: s.homeViewMode,
       setHomeViewMode: s.setHomeViewMode,
     })));
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  useSmoothScroll(containerRef);
 
   const { displayTracks, demoTrackCount, demoPlaytime } = useDisplayData();
 
@@ -116,7 +120,7 @@ export function HomeView() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto page">
+    <div ref={containerRef} className="flex flex-col h-full overflow-y-auto page">
       <div className="flex flex-col gap-8 p-8 pb-4">
         {/* ── Dashboard Header ─────────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
