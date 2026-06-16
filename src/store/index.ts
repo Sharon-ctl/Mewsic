@@ -96,6 +96,7 @@ interface UISlice {
   editTrack: Track | null;
   addTrack: Track | null;
   deleteTrack: Track | null;
+  sharePlaylist: Playlist | null;
   history: { view: ViewId; playlistId: string | null }[];
   historyIndex: number;
   customTitlebar: boolean;
@@ -121,6 +122,7 @@ interface UISlice {
   renamePresetId: string | null;
   playlistScrollOffsets: Record<string, number>;
   smoothScrollEnabled: boolean;
+  minecraftIntegrationEnabled: boolean;
 
   setActiveView: (v: ViewId, skipHistory?: boolean) => void;
   setPlaylistScrollOffset: (playlistId: string, offset: number) => void;
@@ -148,6 +150,7 @@ interface UISlice {
   setEditTrack: (t: Track | null) => void;
   setAddTrack: (t: Track | null) => void;
   setDeleteTrack: (t: Track | null) => void;
+  setSharePlaylist: (p: Playlist | null) => void;
   setShowImportPlaylist: (v: boolean) => void;
   setShowCreatePlaylist: (v: boolean) => void;
   setShowCyberdeck: (v: boolean) => void;
@@ -172,6 +175,7 @@ interface UISlice {
   goBack: () => void;
   goForward: () => void;
   setSmoothScrollEnabled: (v: boolean) => void;
+  setMinecraftIntegrationEnabled: (v: boolean) => void;
 
 
 
@@ -408,6 +412,7 @@ export const useStore = create<Store>()(
       editTrack: null,
       addTrack: null,
       deleteTrack: null,
+      sharePlaylist: null,
       history: [{ view: "home", playlistId: null }],
       historyIndex: 0,
       customTitlebar: true,
@@ -443,6 +448,7 @@ export const useStore = create<Store>()(
       activePresetId: "flat",
       playlistScrollOffsets: {},
       smoothScrollEnabled: true,
+      minecraftIntegrationEnabled: false,
 
       setActiveView: (v, skipHistory = false) => {
         const { history, historyIndex } = get();
@@ -514,6 +520,16 @@ export const useStore = create<Store>()(
       },
       clearDiscordCoverCache: () => set({ discordCoverCache: {} }),
       setSmoothScrollEnabled: (v) => set({ smoothScrollEnabled: v }),
+      setMinecraftIntegrationEnabled: (v) => {
+        set({ minecraftIntegrationEnabled: v });
+        get().addNotification(
+          "Plugin settings changed. Please press Ctrl+Shift+R to reload the app.",
+          "info",
+          5000,
+          false,
+          "Reload Required"
+        );
+      },
       
       shortcuts: {
         togglePlay: { key: "Space", ctrl: false, shift: false, alt: false },
@@ -567,6 +583,7 @@ export const useStore = create<Store>()(
       setEditTrack: (t) => set({ editTrack: t }),
       setAddTrack: (t) => set({ addTrack: t }),
       setDeleteTrack: (t) => set({ deleteTrack: t }),
+      setSharePlaylist: (p) => set({ sharePlaylist: p }),
       setShowImportPlaylist: (v) => set({ showImportPlaylist: v }),
       setShowCreatePlaylist: (v) => set({ showCreatePlaylist: v }),
       setShowCyberdeck: (v) => set({ showCyberdeck: v }),
@@ -728,6 +745,7 @@ export const useStore = create<Store>()(
         activePresetId: s.activePresetId,
         playlistScrollOffsets: s.playlistScrollOffsets,
         smoothScrollEnabled: s.smoothScrollEnabled,
+        minecraftIntegrationEnabled: s.minecraftIntegrationEnabled,
       }),
     }
   )

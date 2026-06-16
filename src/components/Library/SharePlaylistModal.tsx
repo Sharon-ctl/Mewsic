@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { X, Copy, Check, Share2, Info, FolderOpen } from "lucide-react";
-import { open } from "@tauri-apps/plugin-shell";
+import { X, Copy, Check, Share2, Info, FolderOpen, Download } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { downloadDir, join } from "@tauri-apps/api/path";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import type { Playlist, Track } from "../../types";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
@@ -11,8 +13,28 @@ interface SharePlaylistModalProps {
 }
 
 export function SharePlaylistModal({ playlist, onClose }: SharePlaylistModalProps) {
-  const { tracks, playlistsDir } = useStore(useShallow((s) => ({ tracks: s.tracks, playlistsDir: s.playlistsDir })));
+  const { tracks, playlistsDir, addNotification } = useStore(
+    useShallow((s) => ({
+      tracks: s.tracks,
+      playlistsDir: s.playlistsDir,
+      addNotification: s.addNotification
+    }))
+  );
   const [copied, setCopied] = useState(false);
+
+  const handleCopyToDownloads = async () => {
+    try {
+      const dir = await downloadDir();
+      const safeName = playlist.name.replace(/[<>:"/\\|?*]/g, "").trim() || "playlist";
+      const targetPath = await join(dir, `${safeName}.json`);
+      
+      await writeTextFile(targetPath, jsonContent);
+      addNotification(`Playlist copied to Downloads as "${safeName}.json"!`, "success", 4000);
+    } catch (err) {
+      console.error("Failed to copy to downloads:", err);
+      addNotification("Failed to copy playlist to downloads", "error", 4000);
+    }
+  };
 
   const jsonContent = useMemo(() => {
     // Hydrate playlist with full metadata for sharing
@@ -87,13 +109,30 @@ export function SharePlaylistModal({ playlist, onClose }: SharePlaylistModalProp
           </div>
 
           <div className="flex flex-col items-center gap-4">
-            <button
-              onClick={() => playlistsDir && open(playlistsDir)}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-surface-raised border border-border-glass text-xs font-bold text-text-primary hover:bg-white/5 transition-all w-full justify-center group"
-            >
-              <FolderOpen size={16} className="text-accent group-hover:scale-110 transition-transform" />
-              Open Playlists Folder
-            </button>
+            <div className="grid grid-cols-2 gap-4 w-full">
+              <button
+                onClick={async () => {
+                  if (playlistsDir) {
+                    try {
+                      await invoke("show_in_folder", { path: playlistsDir });
+                    } catch (e) {
+                      console.error("Failed to open playlists folder:", e);
+                    }
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl bg-surface-raised border border-border-glass text-xs font-bold text-text-primary hover:bg-white/5 transition-all justify-center group"
+              >
+                <FolderOpen size={16} className="text-accent group-hover:scale-110 transition-transform" />
+                Open Playlists Folder
+              </button>
+              <button
+                onClick={handleCopyToDownloads}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl bg-accent hover:bg-accent/80 text-xs font-bold text-black transition-all justify-center group shadow-lg shadow-accent/10 active:scale-95"
+              >
+                <Download size={16} className="group-hover:translate-y-0.5 transition-transform" />
+                Copy to Downloads
+              </button>
+            </div>
             
             <p className="text-[10px] text-text-muted uppercase tracking-widest font-bold">
               Shared as Mewsic Code (JSON)

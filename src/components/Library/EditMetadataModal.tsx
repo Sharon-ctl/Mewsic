@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { X, Save, ImageIcon, Search, Music, FileText, Globe } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { saveTrackMetadata, getCoverArt, fetchTrackMetadata } from "../../utils/tauriApi";
@@ -128,7 +128,8 @@ export function EditMetadataModal({ track, onClose }: EditMetadataModalProps) {
         multiple: false,
       });
       if (selected && !Array.isArray(selected)) {
-        const content = await readTextFile(selected);
+        const bytes = await readFile(selected);
+        const content = new TextDecoder().decode(bytes);
         setLyrics(content);
       }
     } catch (err) {

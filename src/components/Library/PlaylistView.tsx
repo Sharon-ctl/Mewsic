@@ -27,7 +27,6 @@ import { formatDuration, pluralize, shuffleArray } from "../../utils/helpers";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
 import { ManagePlaylistTracksModal } from "./ManagePlaylistTracksModal";
 import { EditPlaylistModal } from "./EditPlaylistModal";
-import { SharePlaylistModal } from "./SharePlaylistModal";
 import type { Track } from "../../types";
 
 import { useDisplayData } from "../../hooks/useDisplayData";
@@ -43,6 +42,7 @@ export function PlaylistView() {
     setAddTrack,
     playlistViewMode,
     setPlaylistViewMode,
+    setSharePlaylist,
   } = useStore(
     useShallow((s) => ({
       activePlaylistId: s.activePlaylistId,
@@ -52,6 +52,7 @@ export function PlaylistView() {
       setAddTrack: s.setAddTrack,
       playlistViewMode: s.playlistViewMode,
       setPlaylistViewMode: s.setPlaylistViewMode,
+      setSharePlaylist: s.setSharePlaylist,
     }))
   );
 
@@ -65,7 +66,6 @@ export function PlaylistView() {
 
   const [showManageTracks, setShowManageTracks] = useState(false);
   const [showEditPlaylist, setShowEditPlaylist] = useState(false);
-  const [showSharePlaylist, setShowSharePlaylist] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -309,6 +309,13 @@ export function PlaylistView() {
                     <Pencil size={15} />
                   </button>
                   <button
+                    onClick={() => setSharePlaylist(playlist)}
+                    className="btn-icon"
+                    title="Share playlist"
+                  >
+                    <Share2 size={15} />
+                  </button>
+                  <button
                     onClick={handleDelete}
                     className="btn-icon text-red-400 hover:bg-red-500/10"
                     title="Delete playlist"
@@ -396,12 +403,6 @@ export function PlaylistView() {
         <EditPlaylistModal
           playlist={playlist}
           onClose={() => setShowEditPlaylist(false)}
-        />
-      )}
-      {showSharePlaylist && (
-        <SharePlaylistModal
-          playlist={playlist}
-          onClose={() => setShowSharePlaylist(false)}
         />
       )}
     </div>

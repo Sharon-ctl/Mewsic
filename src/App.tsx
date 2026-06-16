@@ -3,6 +3,7 @@ import { useStore } from "./store";
 import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "./hooks/useLibrary";
 import { useMediaControls } from "./hooks/useMediaControls";
+import { usePlugins } from "./hooks/usePlugins";
 import { getAppPaths, setTrayEnabled, toggleFullscreen } from "./utils/tauriApi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
@@ -25,6 +26,7 @@ import { EditMetadataModal } from "./components/Library/EditMetadataModal";
 import { AddToPlaylistModal } from "./components/Library/AddToPlaylistModal";
 import { ImportPlaylistModal } from "./components/Library/ImportPlaylistModal";
 import { CreatePlaylistModal } from "./components/Library/CreatePlaylistModal";
+import { SharePlaylistModal } from "./components/Library/SharePlaylistModal";
 import { ConfirmationModal } from "./components/UI/ConfirmationModal";
 import { deleteTrack } from "./utils/tauriApi";
 import { TitleBar } from "./components/UI/TitleBar";
@@ -55,7 +57,8 @@ export default function App() {
     setFullscreen, isFullscreen, lowEndMode,
     showImportPlaylist, setShowImportPlaylist,
     showCreatePlaylist, setShowCreatePlaylist,
-    showCyberdeck, setShowCyberdeck, setShowAbout
+    showCyberdeck, setShowCyberdeck, setShowAbout,
+    sharePlaylist, setSharePlaylist
   } = useStore(useShallow((s) => ({
     activeView: s.activeView,
     accentColor: s.accentColor,
@@ -88,10 +91,15 @@ export default function App() {
     showCyberdeck: s.showCyberdeck,
     setShowCyberdeck: s.setShowCyberdeck,
     setShowAbout: s.setShowAbout,
+    sharePlaylist: s.sharePlaylist,
+    setSharePlaylist: s.setSharePlaylist,
   })));
 
 
   const { initialize } = useLibrary();
+
+  // Load plugins
+  usePlugins();
 
   // OS media controls (MPRIS / SMTC / Now Playing)
   useMediaControls(); // Sync with OS Media Controls Interface
@@ -378,6 +386,13 @@ export default function App() {
 
       {showCyberdeck && (
         <Cyberdeck onClose={() => setShowCyberdeck(false)} />
+      )}
+
+      {sharePlaylist && (
+        <SharePlaylistModal
+          playlist={sharePlaylist}
+          onClose={() => setSharePlaylist(null)}
+        />
       )}
 
       {/* Custom Global Tooltip overlay */}

@@ -15,7 +15,8 @@ import {
   Pencil,
   Trash2,
   PlusCircle,
-  MinusCircle
+  MinusCircle,
+  Share2
 } from "lucide-react";
 import { toggleFullscreen } from "../../utils/tauriApi";
 import { useStore } from "../../store";
@@ -76,7 +77,8 @@ export function ContextMenu() {
     isPlaying, setIsPlaying, playNext, playPrev, requestSeek, currentTrack,
     setShowAbout, tracks, setAddTrack, setEditTrack, setDeleteTrack,
     activePlaylistId, playlists, goBack, goForward, historyIndex, history,
-    deletePreset, updatePresetSettings, setRenamePresetId, addNotification, setQueue
+    deletePreset, updatePresetSettings, setRenamePresetId, addNotification, setQueue,
+    setSharePlaylist
   } = useStore(useShallow((s) => ({
     isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying, playNext: s.playNext,
     playPrev: s.playPrev, requestSeek: s.requestSeek, currentTrack: s.currentTrack,
@@ -85,7 +87,8 @@ export function ContextMenu() {
     activePlaylistId: s.activePlaylistId, playlists: s.playlists,
     goBack: s.goBack, goForward: s.goForward, historyIndex: s.historyIndex, history: s.history,
     deletePreset: s.deletePreset, updatePresetSettings: s.updatePresetSettings, setRenamePresetId: s.setRenamePresetId,
-    addNotification: s.addNotification, setQueue: s.setQueue
+    addNotification: s.addNotification, setQueue: s.setQueue,
+    setSharePlaylist: s.setSharePlaylist
   })));
 
   const canGoBack = historyIndex > 0;
@@ -227,7 +230,14 @@ export function ContextMenu() {
     }
     setVisible(false);
   };
-
+  const handleSharePlaylist = () => {
+    if (!contextPlaylistId) return;
+    const pl = playlists.find(p => p.id === contextPlaylistId);
+    if (pl) {
+      setSharePlaylist(pl);
+    }
+    setVisible(false);
+  };
   const handleRemoveFromPlaylist = async () => {
     if (!contextTrack || !activePlaylistId) return;
     const playlist = playlists.find(p => p.id === activePlaylistId);
@@ -331,6 +341,11 @@ export function ContextMenu() {
               icon={<Pencil size={16} />}
               label="Edit Playlist"
               onClick={() => { setEditingPlaylistId(contextPlaylistId); setVisible(false); }}
+            />
+            <ContextMenuItem
+              icon={<Share2 size={16} />}
+              label="Share Playlist"
+              onClick={handleSharePlaylist}
             />
             <Divider />
             <ContextMenuItem

@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { Terminal, Cpu, HardDrive, Trash2, RefreshCw, X, Command } from "lucide-react";
 import { useStore } from "../../store";
 import { useLibrary } from "../../hooks/useLibrary";
-import { clearImageCache, getOSName } from "../../utils/tauriApi";
+import { clearImageCache, getOSName, savePlaylist } from "../../utils/tauriApi";
 import { useShallow } from "zustand/react/shallow";
+import { version } from "../../../package.json";
+import type { Track } from "../../types";
 
 interface LogEntry {
   type: "info" | "success" | "error" | "input";
@@ -12,7 +14,7 @@ interface LogEntry {
 export function Cyberdeck({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState("");
   const [logs, setLogs] = useState<LogEntry[]>([
-    { type: "info", text: "MEWSIC CYBERDECK v0.7.0 INITIALIZED..." },
+    { type: "info", text: `MEWSIC CYBERDECK v${version} INITIALIZED...` },
     { type: "info", text: "TYPE 'HELP' FOR AVAILABLE COMMANDS." },
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -73,6 +75,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         addLog("  DEVMODE       - UNLOCK EXPERIMENTAL TOOLS");
         addLog("  DEMO-MODE     - TOGGLE PRIVACY MODE");
         addLog("  CLEAR         - RESET TERMINAL LOGS");
+        addLog("  REFRESHPLAYLIST - REGENERATE PLAYLIST FILES");
         addLog("  EXIT / QUIT   - CLOSE");
         addLog("--- SETTINGS CONTROL ---");
         addLog("  SET <KEY> <VAL> - CONFIGURE APP");
@@ -326,7 +329,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
           addLog("DISPLAYS SYSTEM TELEMETRY AND APP BRANDING.");
           break;
         }
-        addLog("      _--_      MEWSIC v0.8.4");
+        addLog(`      _--_      MEWSIC v${version}`);
         addLog(`    /      \\    OS: ${getOSName().toUpperCase()}-X64`);
         addLog("   |  O  O  |   THEME: " + theme.toUpperCase());
         addLog("    \\  __  /    ACCENT: " + accentColor.toUpperCase());
@@ -356,6 +359,58 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         addLog("INITIATING BACKGROUND RESCAN...");
         rescanDirectory();
         addLog("RESCAN TASK DISPATCHED.", "success");
+        break;
+
+      case "refreshplaylist":
+        if (args[1] === "help") {
+          addLog("USAGE: REFRESHPLAYLIST [PLAYLIST_NAME]");
+          addLog("REGENERATES THE PHYSICAL JSON FILE ON DISK FOR A PLAYLIST");
+          addLog("WITHOUT LOSING ANY TRACKS OR METADATA.");
+          addLog("IF NO NAME IS GIVEN, ALL REGISTERED PLAYLISTS ARE REGENERATED.");
+          break;
+        }
+
+        const playlistNameArg = args.slice(1).join(" ").trim().toLowerCase();
+        
+        if (playlistNameArg) {
+          const target = playlists.find(p => p.name.toLowerCase() === playlistNameArg || p.id.toLowerCase() === playlistNameArg);
+          if (!target) {
+            addLog(`ERROR: PLAYLIST "${playlistNameArg}" NOT FOUND.`, "error");
+            break;
+          }
+          addLog(`REGENERATING PLAYLIST "${target.name}" ON DISK...`, "info");
+          try {
+            const hydrated = {
+              ...target,
+              tracks: target.trackIds.map(id => tracks.find(t => t.id === id)).filter((t): t is Track => !!t)
+            };
+            await savePlaylist(hydrated);
+            addLog(`SUCCESSFULLY REGENERATED "${target.name}" JSON FILE.`, "success");
+          } catch (err) {
+            addLog(`FAILED TO SAVE PLAYLIST: ${err}`, "error");
+          }
+        } else {
+          if (playlists.length === 0) {
+            addLog("NO PLAYLISTS FOUND TO REGENERATE.", "error");
+            break;
+          }
+          addLog(`REGENERATING ${playlists.length} PLAYLISTS...`, "info");
+          let count = 0;
+          for (const pl of playlists) {
+            try {
+              const hydrated = {
+                ...pl,
+                tracks: pl.trackIds.map(id => tracks.find(t => t.id === id)).filter((t): t is Track => !!t)
+              };
+              await savePlaylist(hydrated);
+              addLog(`  - REGENERATED "${pl.name}"`, "success");
+              count++;
+            } catch (err) {
+              addLog(`  - FAILED "${pl.name}": ${err}`, "error");
+            }
+          }
+          addLog(`COMPLETED: ${count}/${playlists.length} PLAYLISTS REGENERATED.`, "success");
+        }
         break;
 
       case "exit":
@@ -441,7 +496,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
               <span className="text-[10px] text-accent opacity-80 font-black tracking-widest uppercase">DISK: {tracks.length} OBJ</span>
             </div>
           </div>
-          <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v0.8.4</span>
+          <span className="text-[10px] text-accent opacity-30 font-mono tracking-tighter">NODE_MWS_CORE_v{version}</span>
         </div>
       </div>
     </div>

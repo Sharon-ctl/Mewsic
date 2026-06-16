@@ -42,6 +42,7 @@ export function useLibrary() {
     updateNotification,
     removeNotification,
     tracks,
+    playlists,
   } = useStore(useShallow((s) => ({
     musicDir: s.musicDir,
     playlistsDir: s.playlistsDir,
@@ -57,6 +58,7 @@ export function useLibrary() {
     updateNotification: s.updateNotification,
     removeNotification: s.removeNotification,
     tracks: s.tracks,
+    playlists: s.playlists,
   })));
 
   const initialize = useCallback(async () => {
@@ -154,12 +156,21 @@ export function useLibrary() {
 
   const updatePlaylistData = useCallback(async (pl: Playlist) => {
     try {
-      await savePlaylist(pl);
+      const hydratedTracks = pl.trackIds
+        .map((id) => tracks.find((t) => t.id === id))
+        .filter((t): t is Track => !!t);
+
+      const playlistWithTracks = {
+        ...pl,
+        tracks: hydratedTracks,
+      };
+
+      await savePlaylist(playlistWithTracks);
       updatePlaylist(pl);
     } catch (err) {
       console.error("Save playlist error:", err);
     }
-  }, [updatePlaylist]);
+  }, [updatePlaylist, tracks]);
 
   const removePlaylistData = useCallback(async (pl: Playlist) => {
     try {
@@ -210,9 +221,10 @@ export function useLibrary() {
 
     // Ensure the playlist is saved to a file if it was imported via JSON or has no path
     let activePlaylist = { ...pl };
+    const exists = playlists.some(p => p.id === activePlaylist.id);
     const needsNewPath = !activePlaylist.filePath || !activePlaylist.filePath.startsWith(playlistsDir);
 
-    if (needsNewPath) {
+    if (!exists || needsNewPath) {
       const safeName = activePlaylist.name.replace(/[<>:"/\\|?*]/g, "").trim() || "Imported Playlist";
       const fileName = `${safeName}.json`;
       const fullPath = await join(playlistsDir, fileName);
@@ -221,9 +233,18 @@ export function useLibrary() {
       try {
         activePlaylist.filePath = fullPath;
         
-        // Register in library immediately
-        addPlaylist(activePlaylist);
-        // Save the physical file
+        if (!activePlaylist.tracks || activePlaylist.tracks.length === 0) {
+          activePlaylist.tracks = activePlaylist.trackIds
+            .map((id) => tracks.find((lt) => lt.id === id))
+            .filter((t): t is Track => !!t);
+        }
+
+        if (!exists) {
+          addPlaylist(activePlaylist);
+        } else {
+          updatePlaylist(activePlaylist);
+        }
+        
         await savePlaylist(activePlaylist);
         
         updateNotification(notifId, { message: "Playlist file created!", type: "success", loading: false });
@@ -233,8 +254,8 @@ export function useLibrary() {
         setTimeout(() => removeNotification(notifId), 5000);
       }
     } else {
-      // Just update existing
       updatePlaylist(activePlaylist);
+      await savePlaylist(activePlaylist);
     }
 
     // Only proceed to downloading tracks if we have track metadata to work with
@@ -309,7 +330,7 @@ export function useLibrary() {
       }
     }
   }
-}, [musicDir, playlistsDir, tracks, addNotification, updateNotification, removeNotification, addPlaylist, updatePlaylist, rescanDirectory, refreshPlaylists]);
+}, [musicDir, playlistsDir, tracks, playlists, addNotification, updateNotification, removeNotification, addPlaylist, updatePlaylist, rescanDirectory, refreshPlaylists]);
 
   const importPlaylist = useCallback(async () => {
     if (!playlistsDir || !musicDir) return;

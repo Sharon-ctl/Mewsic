@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Clipboard, FileJson, Music, Loader2, Download, AlertCircle, CheckCircle2 } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readFile } from "@tauri-apps/plugin-fs";
 import type { Playlist, Track } from "../../types";
 import { useLibrary } from "../../hooks/useLibrary";
 import { useStore } from "../../store";
@@ -17,9 +17,27 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
   const [isImporting, setIsImporting] = useState(false);
   
   const { rehydratePlaylist } = useLibrary();
-  const { addNotification } = useStore(state => ({
-    addNotification: state.addNotification
+  const { addNotification, allTracks } = useStore(state => ({
+    addNotification: state.addNotification,
+    allTracks: state.tracks
   }));
+
+  const resolvedTracks = React.useMemo(() => {
+    if (!preview) return [];
+    if (preview.tracks && preview.tracks.length > 0) return preview.tracks;
+    return preview.trackIds.map(id => {
+      const found = allTracks.find(t => t.id === id);
+      if (found) return found;
+      return {
+        id,
+        title: "Unknown Track",
+        artist: `ID: ${id.substring(0, 8)}...`,
+        album: "",
+        filePath: "",
+        dateAdded: 0
+      } as Track;
+    });
+  }, [preview, allTracks]);
 
   useEffect(() => {
     if (!jsonInput.trim()) {
@@ -30,10 +48,21 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
 
     try {
       const parsed = JSON.parse(jsonInput.trim());
-      if (!parsed.id || (!parsed.trackIds && !parsed.tracks)) {
+      // Normalize snake_case to camelCase
+      const normalized: Playlist = {
+        id: parsed.id || "",
+        name: parsed.name || "Untitled Playlist",
+        filePath: parsed.filePath || parsed.file_path || "",
+        trackIds: parsed.trackIds || parsed.track_ids || [],
+        createdAt: parsed.createdAt || parsed.created_at || Date.now(),
+        tracks: parsed.tracks || [],
+        coverArt: parsed.coverArt || parsed.cover_art || undefined
+      };
+
+      if (!normalized.id || (normalized.trackIds.length === 0 && (normalized.tracks || []).length === 0)) {
         throw new Error("Invalid playlist format. Missing ID or tracks.");
       }
-      setPreview(parsed);
+      setPreview(normalized);
       setError(null);
     } catch (err: any) {
       setPreview(null);
@@ -49,7 +78,8 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
       });
 
       if (selected && typeof selected === "string") {
-        const content = await readTextFile(selected);
+        const bytes = await readFile(selected);
+        const content = new TextDecoder().decode(bytes);
         setJsonInput(content);
       }
     } catch (err) {
@@ -59,9 +89,15 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
 
   const handleImport = async () => {
     if (!preview) return;
-    addNotification(`Importing "${preview.name}"...`, "info", 3000);
-    rehydratePlaylist(preview);
-    onClose();
+    setIsImporting(true);
+    try {
+      await rehydratePlaylist(preview);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Failed to import playlist");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -126,7 +162,9 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-lg font-bold text-text-primary truncate">{preview.name || "Untitled Playlist"}</h3>
-                  <p className="text-sm text-text-muted">{preview.tracks?.length || 0} tracks found in code</p>
+                  <p className="text-sm text-text-muted">
+                    {(preview.trackIds?.length || (preview.tracks?.length || 0))} tracks found in code
+                  </p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-accent/10 text-accent uppercase tracking-wider">
                       Ready to Import
@@ -136,7 +174,7 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
               </div>
 
               <div className="space-y-2 max-h-40 overflow-y-auto pr-2 scrollbar-thin border-t border-border-subtle pt-4">
-                {preview.tracks?.slice(0, 10).map((t: Track, i: number) => (
+                {resolvedTracks.slice(0, 10).map((t: Track, i: number) => (
                   <div key={i} className="flex items-center gap-3 text-xs text-text-secondary group">
                     <span className="text-text-muted font-mono w-4">{i + 1}.</span>
                     <span className="truncate group-hover:text-text-primary transition-colors">{t.title}</span>
@@ -144,9 +182,9 @@ export function ImportPlaylistModal({ onClose }: ImportPlaylistModalProps) {
                     <span className="truncate text-text-muted italic">{t.artist}</span>
                   </div>
                 ))}
-                {(preview.tracks?.length || 0) > 10 && (
+                {(resolvedTracks.length || 0) > 10 && (
                   <p className="text-[10px] text-text-muted italic pt-1 pl-7">
-                    + {preview.tracks!.length - 10} more tracks
+                    + {resolvedTracks.length - 10} more tracks
                   </p>
                 )}
               </div>

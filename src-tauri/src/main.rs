@@ -100,6 +100,14 @@ pub struct AppPaths {
     pub covers_dir: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PluginData {
+    pub id: String,
+    pub manifest: serde_json::Value,
+    pub js_content: Option<String>,
+    pub css_content: Option<String>,
+}
+
 enum DiscordCommand {
     Update {
         title: String,
@@ -424,6 +432,95 @@ fn get_downloads_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
         .download_dir()
         .map(|p| p.to_string_lossy().to_string())
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn get_plugins(app_handle: tauri::AppHandle) -> Result<Vec<PluginData>, String> {
+    let plugins_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map(|p| p.join("plugins"))
+        .unwrap_or_else(|_| PathBuf::from("plugins"));
+
+    if !plugins_dir.exists() {
+        if let Err(e) = fs::create_dir_all(&plugins_dir) {
+            eprintln!("Failed to create plugins directory: {}", e);
+            return Ok(vec![]);
+        }
+    }
+
+    let mut plugins = Vec::new();
+
+    if let Ok(entries) = fs::read_dir(&plugins_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let manifest_path = path.join("manifest.json");
+                if manifest_path.exists() {
+                    let id = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    
+                    let manifest_str = fs::read_to_string(&manifest_path).unwrap_or_default();
+                    let manifest: serde_json::Value = serde_json::from_str(&manifest_str).unwrap_or(serde_json::json!({}));
+
+                    let js_content = fs::read_to_string(path.join("plugin.js")).ok();
+                    let css_content = fs::read_to_string(path.join("styles.css")).ok();
+
+                    plugins.push(PluginData {
+                        id,
+                        manifest,
+                        js_content,
+                        css_content,
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(plugins)
+}
+
+#[tauri::command]
+fn get_plugins_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let plugins_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map(|p| p.join("plugins"))
+        .map_err(|e| e.to_string())?;
+    if !plugins_dir.exists() {
+        fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+    }
+    Ok(plugins_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn show_in_folder(path: String) -> Result<(), String> {
+    let path_buf = std::path::PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Err("Path does not exist".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1981,6 +2078,9 @@ fn main() {
             start_window_drag,
             get_downloads_dir,
             clear_image_cache,
+            get_plugins,
+            get_plugins_dir,
+            show_in_folder,
         ])
         .on_window_event(|window, event| {
             match event {

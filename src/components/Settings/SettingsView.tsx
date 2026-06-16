@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Palette, FolderOpen, RefreshCw, Trash2, Check, RotateCcw,
   Info, Music2, Volume2, FolderInput, Sun, Moon, Keyboard, Monitor, Share2, MessageSquare, Bell, Zap, FileUp, FolderPlus, Database, Power,
-  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List, Sliders
+  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List, Sliders, Puzzle
 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
@@ -15,6 +15,7 @@ import { ACCENT_PRESETS } from "../../utils/helpers";
 import { useSmoothScroll } from "../../hooks/useSmoothScroll";
 import { ConfirmationModal } from "../UI/ConfirmationModal";
 import { UpdateModal } from "../UI/UpdateModal";
+import { PluginManagerModal } from "../UI/PluginManagerModal";
 import { ThemedSlider } from "../UI/ThemedSlider";
 import type { ShortcutMap, Shortcut } from "../../types";
 
@@ -78,6 +79,8 @@ export function SettingsView() {
     setPlaylistViewMode,
     smoothScrollEnabled = true,
     setSmoothScrollEnabled,
+    minecraftIntegrationEnabled,
+    setMinecraftIntegrationEnabled,
   } = useStore(useShallow((s) => ({
     accentColor: s.accentColor,
     volume: s.volume,
@@ -109,18 +112,21 @@ export function SettingsView() {
     setPlaylistViewMode: s.setPlaylistViewMode,
     smoothScrollEnabled: s.smoothScrollEnabled,
     setSmoothScrollEnabled: s.setSmoothScrollEnabled,
+    minecraftIntegrationEnabled: s.minecraftIntegrationEnabled,
+    setMinecraftIntegrationEnabled: s.setMinecraftIntegrationEnabled,
   })));
 
   const { displayTracks, displayMusicDir, displayPlaylistsDir } = useDisplayData();
-  const { 
-    changeMusicDirectory, 
-    changePlaylistsDirectory, 
-    rescanDirectory, 
-    importSongs, 
-    importPlaylist, 
-    refreshPlaylists 
+  const {
+    changeMusicDirectory,
+    changePlaylistsDirectory,
+    rescanDirectory,
+    importSongs,
+    importPlaylist,
+    refreshPlaylists
   } = useLibrary();
-  
+
+  const [showPluginManager, setShowPluginManager] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [refreshingPlaylists, setRefreshingPlaylists] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
@@ -135,7 +141,7 @@ export function SettingsView() {
   useSmoothScroll(containerRef);
 
   useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => {});
+    getVersion().then(setAppVersion).catch(() => { });
   }, []);
 
   const handleCheckForUpdates = () => {
@@ -184,14 +190,14 @@ export function SettingsView() {
   const getBuildId = () => {
     const vParts = appVersion.split('.');
     if (vParts.length < 3) return "00000000000";
-    
+
     const now = new Date();
     const yearStr = now.getFullYear().toString(); // 2026
     const y1 = yearStr.slice(0, 2); // 20
     const y2 = yearStr.slice(2, 4); // 26
     const mm = (now.getMonth() + 1).toString().padStart(2, '0'); // 05
     const dd = now.getDate().toString().padStart(2, '0'); // 06
-    
+
     return `${y1}${vParts[0]}${y2}${vParts[1]}${mm}${vParts[2]}${dd}`;
   };
 
@@ -274,14 +280,14 @@ export function SettingsView() {
                     Scaling: <span className="text-accent font-black">{localGuiScale.toFixed(2)}x</span>
                   </span>
                   <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => { setGuiScale(1.15); setLocalGuiScale(1.15); }} 
+                    <button
+                      onClick={() => { setGuiScale(1.15); setLocalGuiScale(1.15); }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-raised border border-border-subtle text-[10px] font-black text-text-muted hover:text-accent hover:border-accent transition-all uppercase tracking-widest"
                     >
                       <RotateCcw size={10} />
                       Reset
                     </button>
-                    <button 
+                    <button
                       onClick={() => setGuiScale(localGuiScale)}
                       disabled={localGuiScale === guiScale}
                       className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-accent text-black text-[10px] font-black hover:opacity-90 active:scale-95 transition-all uppercase tracking-widest disabled:opacity-30 disabled:grayscale disabled:scale-100"
@@ -306,8 +312,8 @@ export function SettingsView() {
                 <ShortcutRow label="Volume Up" action="volumeUp" shortcut={shortcuts.volumeUp} onSet={setShortcut} />
                 <ShortcutRow label="Volume Down" action="volumeDown" shortcut={shortcuts.volumeDown} onSet={setShortcut} />
               </div>
-              <button 
-                onClick={resetShortcuts} 
+              <button
+                onClick={resetShortcuts}
                 className="w-full mt-auto py-2 rounded-lg bg-surface-raised border border-border-subtle text-[10px] font-black text-text-muted hover:text-accent hover:border-accent transition-all uppercase tracking-[0.2em]"
               >
                 Restore Defaults
@@ -371,7 +377,7 @@ export function SettingsView() {
                         <p className="text-[9px] text-text-muted mt-1 italic">Clear generated cover thumbnails</p>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={handleClearCache}
                       disabled={clearingCache}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-raised border border-border-subtle text-[10px] font-bold text-text-muted hover:text-red-400 hover:border-red-400/30 transition-all uppercase tracking-wider"
@@ -389,7 +395,7 @@ export function SettingsView() {
                         <p className="text-[9px] text-text-muted mt-1 italic">Reset rich presence cover history</p>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={handleClearDiscordCache}
                       disabled={clearingDiscord}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-raised border border-border-subtle text-[10px] font-bold text-text-muted hover:text-accent hover:border-accent/30 transition-all uppercase tracking-wider"
@@ -407,7 +413,7 @@ export function SettingsView() {
                         <p className="text-[9px] text-text-muted mt-1 italic">Flush RAM & reload interface</p>
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={handleReloadApp}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-raised border border-border-subtle text-[10px] font-bold text-text-muted hover:text-accent hover:border-accent/30 transition-all uppercase tracking-wider"
                     >
@@ -473,7 +479,7 @@ export function SettingsView() {
                     <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-border-subtle" />
                   </label>
                 </div>
-                
+
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-overlay border border-border-subtle">
                   <div className="flex items-center gap-2.5">
                     <PanelTop size={14} className={customTitlebar ? "text-accent" : "text-text-muted"} />
@@ -517,7 +523,7 @@ export function SettingsView() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button 
+                  <button
                     onClick={handleCheckForUpdates}
                     className="flex-1 bg-surface-raised border border-border-subtle text-text-primary py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-accent hover:text-accent transition-all flex items-center justify-center gap-2"
                   >
@@ -526,8 +532,8 @@ export function SettingsView() {
                   </button>
                 </div>
               </div>
-              
-              <div className="mt-auto p-3 rounded-lg bg-accent-muted/10 border border-accent/10">
+
+              <div className="mt-auto p-3 rounded-lg bg-accent-muted/10 border border-accent/5">
                 <p className="text-[9px] text-text-muted leading-relaxed italic">
                   Auto-update checks are performed on startup. You can manually trigger a check here to ensure you have the latest features and security patches.
                 </p>
@@ -539,7 +545,7 @@ export function SettingsView() {
           <Section icon={<LayoutGrid size={16} />} title="Default Layouts">
             <div className="space-y-4 h-full flex flex-col">
               <div className="grid grid-cols-1 gap-2">
-                
+
                 <div className="flex items-center justify-between p-3 rounded-xl bg-surface-overlay border border-border-subtle group hover:border-accent/30 transition-all">
                   <div>
                     <p className="text-[13px] font-medium text-text-primary leading-none">Home View</p>
@@ -590,30 +596,51 @@ export function SettingsView() {
           </Section>
         </div>
 
-        {/* Row 3: Social & Library Info */}
+        {/* Row 3: Integrations & Library Info */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-          <Section icon={<Share2 size={16} />} title="Social & Privacy">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-surface-overlay border border-border-subtle">
+          <Section icon={<Share2 size={16} />} title="Integrations">
+            <div className="flex flex-col gap-3 h-full">
+              {/* Plugin Manager button */}
+              <div
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-overlay border border-border-subtle group hover:border-accent/40 transition-all cursor-pointer"
+                onClick={() => setShowPluginManager(true)}
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[#5865F2] flex items-center justify-center shadow-lg shadow-[#5865F2]/20">
-                    <MessageSquare size={20} color="#fff" />
+                  <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-all">
+                    <Puzzle size={17} className="text-accent" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-text-primary">Discord Presence</p>
-                    <p className="text-[10px] text-text-muted">Show what you're listening to</p>
+                    <p className="text-[13px] font-bold text-text-primary leading-none">Plugin Manager</p>
+                    <p className="text-[10px] text-text-muted mt-0.5">
+                      {[discordEnabled, minecraftIntegrationEnabled].filter(Boolean).length} of 2 built-in active
+                    </p>
                   </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={discordEnabled} onChange={(e) => setDiscordEnabled(e.target.checked)} />
-                  <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-border-subtle" />
-                </label>
+                <span className="text-[10px] font-black text-accent uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-all pr-1">
+                  Manage →
+                </span>
               </div>
 
-              <div className="p-3 rounded-lg bg-accent-muted/20 border border-accent/10">
-                <p className="text-[10px] text-text-secondary leading-relaxed italic">
-                  When enabled, Mewsic updates your Discord status with track details and progress.
-                </p>
+              {/* Individual plugin status rows */}
+              <div className="flex flex-col gap-1.5">
+                {[
+                  { id: "discord-rpc", label: "Discord Rich Presence", enabled: discordEnabled, color: "#5865F2" },
+                  { id: "minecraft-bridge", label: "Minecraft Bridge", enabled: minecraftIntegrationEnabled, color: "#2b714b" },
+                ].map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-overlay border border-border-subtle cursor-pointer hover:border-accent/20 transition-all"
+                    onClick={() => setShowPluginManager(true)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.enabled ? p.color : "rgba(255,255,255,0.12)" }} />
+                      <span className="text-[11px] font-medium text-text-primary">{p.label}</span>
+                    </div>
+                    <span className={`text-[9px] font-black uppercase tracking-widest ${p.enabled ? "text-green-400" : "text-text-muted opacity-40"}`}>
+                      {p.enabled ? "Active" : "Off"}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </Section>
@@ -654,6 +681,10 @@ export function SettingsView() {
 
       {showUpdateModal && (
         <UpdateModal onClose={() => setShowUpdateModal(false)} />
+      )}
+
+      {showPluginManager && (
+        <PluginManagerModal onClose={() => setShowPluginManager(false)} />
       )}
     </div>
   );
@@ -700,8 +731,8 @@ function ShortcutRow({ label, action, shortcut, onSet }: {
       <button
         onClick={() => setIsRecording(true)}
         className={`px-4 py-1.5 rounded-lg border text-[10px] font-black transition-all min-w-[140px] text-center uppercase tracking-wider ${isRecording
-            ? "bg-accent text-black border-accent animate-pulse"
-            : "bg-surface-raised text-text-muted border-border-subtle hover:border-accent hover:text-accent"
+          ? "bg-accent text-black border-accent animate-pulse"
+          : "bg-surface-raised text-text-muted border-border-subtle hover:border-accent hover:text-accent"
           }`}
       >
         {isRecording ? "Press a key..." : displayKey()}
