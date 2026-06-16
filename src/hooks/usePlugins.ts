@@ -9,9 +9,14 @@ const MINECRAFT_PLUGIN_CODE = `
   let reconnectTimer = null;
 
   function connect() {
+    window.Mewsic.minecraftConnected = false;
+    window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
+
     ws = new WebSocket("ws://127.0.0.1:3012");
 
     ws.onopen = () => {
+      window.Mewsic.minecraftConnected = true;
+      window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: true }));
       window.Mewsic.ui.addNotification("Connected to Minecraft!", "success", 3000);
       if (window.Mewsic.player.currentTrack) {
         const track = window.Mewsic.player.currentTrack;
@@ -76,14 +81,27 @@ const MINECRAFT_PLUGIN_CODE = `
     };
 
     ws.onclose = () => {
+      window.Mewsic.minecraftConnected = false;
+      window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
       // Try to reconnect every 5 seconds if disconnected
       reconnectTimer = setTimeout(connect, 5000);
     };
 
     ws.onerror = () => {
+      window.Mewsic.minecraftConnected = false;
+      window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
       ws.close();
     };
   }
+
+  window.Mewsic.reconnectMinecraft = () => {
+    if (ws) {
+      ws.onclose = null;
+      ws.close();
+    }
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    connect();
+  };
 
   connect();
 

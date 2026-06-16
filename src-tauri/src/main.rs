@@ -123,11 +123,14 @@ enum DiscordCommand {
 
 pub struct DiscordState {
     tx: Mutex<std::sync::mpsc::Sender<DiscordCommand>>,
+    connected: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl DiscordState {
     fn new() -> Self {
         let (tx, rx) = std::sync::mpsc::channel::<DiscordCommand>();
+        let connected = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let connected_clone = connected.clone();
 
         std::thread::spawn(move || {
             let mut client: Option<DiscordIpcClient> = None;
@@ -154,6 +157,7 @@ impl DiscordState {
                             if let Ok(mut c) = DiscordIpcClient::new("1497554583726329938") {
                                 if c.connect().is_ok() {
                                     client = Some(c);
+                                    connected_clone.store(true, std::sync::atomic::Ordering::Relaxed);
                                 }
                             }
                         }
@@ -208,7 +212,12 @@ impl DiscordState {
 
                             if c.set_activity(activity).is_err() {
                                 client = None;
+                                connected_clone.store(false, std::sync::atomic::Ordering::Relaxed);
+                            } else {
+                                connected_clone.store(true, std::sync::atomic::Ordering::Relaxed);
                             }
+                        } else {
+                            connected_clone.store(false, std::sync::atomic::Ordering::Relaxed);
                         }
                     }
                     DiscordCommand::Clear => {
@@ -216,12 +225,16 @@ impl DiscordState {
                             let _ = c.clear_activity();
                             let _ = c.close();
                         }
+                        connected_clone.store(false, std::sync::atomic::Ordering::Relaxed);
                     }
                 }
             }
         });
 
-        Self { tx: Mutex::new(tx) }
+        Self {
+            tx: Mutex::new(tx),
+            connected,
+        }
     }
 }
 
@@ -1510,6 +1523,11 @@ async fn clear_discord_rpc(state: tauri::State<'_, DiscordState>) -> Result<(), 
 }
 
 #[tauri::command]
+fn is_discord_connected(state: tauri::State<'_, DiscordState>) -> bool {
+    state.connected.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[tauri::command]
 fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.hide();
@@ -2081,6 +2099,7 @@ fn main() {
             get_plugins,
             get_plugins_dir,
             show_in_folder,
+            is_discord_connected,
         ])
         .on_window_event(|window, event| {
             match event {

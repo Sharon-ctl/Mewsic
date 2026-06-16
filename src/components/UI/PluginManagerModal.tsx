@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Puzzle, Box, Info, RefreshCw, FolderOpen, Power, Trash2, Sliders, Terminal } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
@@ -62,13 +62,54 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
   const [selectedDetailTab, setSelectedDetailTab] = useState<"about" | "details" | "features">("about");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { minecraftIntegrationEnabled, setMinecraftIntegrationEnabled, discordEnabled, setDiscordEnabled, isDevMode } = useStore((s) => ({
+  const {
+    minecraftIntegrationEnabled,
+    setMinecraftIntegrationEnabled,
+    discordEnabled,
+    setDiscordEnabled,
+    isDevMode,
+    addNotification
+  } = useStore((s) => ({
     minecraftIntegrationEnabled: s.minecraftIntegrationEnabled,
     setMinecraftIntegrationEnabled: s.setMinecraftIntegrationEnabled,
     discordEnabled: s.discordEnabled,
     setDiscordEnabled: s.setDiscordEnabled,
     isDevMode: s.isDevMode,
+    addNotification: s.addNotification,
   }));
+
+  const [minecraftConnected, setMinecraftConnected] = useState(
+    typeof window !== "undefined" && window.Mewsic ? !!window.Mewsic.minecraftConnected : false
+  );
+  const [discordConnected, setDiscordConnected] = useState(false);
+
+  useEffect(() => {
+    const handleMcChange = (e: any) => {
+      setMinecraftConnected(e.detail);
+    };
+    window.addEventListener("minecraft-connection-changed" as any, handleMcChange);
+    return () => {
+      window.removeEventListener("minecraft-connection-changed" as any, handleMcChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!discordEnabled) {
+      setDiscordConnected(false);
+      return;
+    }
+    const checkDiscord = async () => {
+      try {
+        const connected = await invoke<boolean>("is_discord_connected");
+        setDiscordConnected(connected);
+      } catch (err) {
+        setDiscordConnected(false);
+      }
+    };
+    checkDiscord();
+    const interval = setInterval(checkDiscord, 2000);
+    return () => clearInterval(interval);
+  }, [discordEnabled]);
 
   const { plugins: externalPlugins } = usePlugins();
 
@@ -97,7 +138,7 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
       ...p,
       type: "builtin" as const,
       isEnabled: builtinStates[p.id] ?? false,
-      isDisabled: p.id === "minecraft-bridge" && !isDevMode
+      isDisabled: false
     })),
     ...externalPlugins.map(p => ({
       id: p.id,
@@ -252,7 +293,13 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
                             {p.name}
                           </p>
                           {p.isEnabled && !p.isDisabled && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                              p.id === "discord-rpc"
+                                ? (discordConnected ? "bg-green-400" : "bg-amber-500")
+                                : p.id === "minecraft-bridge"
+                                ? (minecraftConnected ? "bg-green-400" : "bg-amber-500")
+                                : "bg-green-400"
+                            }`} />
                           )}
                         </div>
                         <p className="text-[9px] text-text-muted mt-0.5 truncate">by {p.author}</p>
@@ -303,9 +350,25 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
                       <p className="text-xs text-text-secondary mt-1">
                         by <span className="text-text-primary font-medium">{selectedPlugin.author}</span>
                         {selectedPlugin.isEnabled && !selectedPlugin.isDisabled && (
-                          <span className="ml-2.5 text-[10px] text-green-400 font-bold bg-green-400/15 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                            Active
-                          </span>
+                          <>
+                            <span className="ml-2.5 text-[10px] text-green-400 font-bold bg-green-400/15 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                              Active
+                            </span>
+                            {selectedPlugin.id === "discord-rpc" && (
+                              <span className={`ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                                discordConnected ? "text-green-400 bg-green-400/15" : "text-amber-400 bg-amber-400/15"
+                              }`}>
+                                {discordConnected ? "Connected" : "Disconnected"}
+                              </span>
+                            )}
+                            {selectedPlugin.id === "minecraft-bridge" && (
+                              <span className={`ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                                minecraftConnected ? "text-green-400 bg-green-400/15" : "text-amber-400 bg-amber-400/15"
+                              }`}>
+                                {minecraftConnected ? "Connected" : "Disconnected"}
+                              </span>
+                            )}
+                          </>
                         )}
                         {selectedPlugin.isDisabled && (
                           <span className="ml-2.5 text-[10px] text-amber-500 font-bold bg-amber-500/15 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
@@ -339,6 +402,24 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
                         {selectedPlugin.isEnabled && !selectedPlugin.isDisabled ? "Disable" : "Enable"}
                       </span>
                     </button>
+
+                    {selectedPlugin.id === "minecraft-bridge" && selectedPlugin.isEnabled && (
+                      <button
+                        onClick={() => {
+                          if (window.Mewsic && typeof window.Mewsic.reconnectMinecraft === "function") {
+                            window.Mewsic.reconnectMinecraft();
+                            addNotification?.("Minecraft connection request sent", "success");
+                          } else {
+                            addNotification?.("Minecraft plugin is not running", "error");
+                          }
+                        }}
+                        className="flex flex-col items-center justify-center w-16 h-16 rounded-2xl border border-accent/20 hover:border-accent/40 bg-accent/5 text-accent hover:bg-accent/10 transition-all cursor-pointer"
+                        title="Reconnect to Minecraft"
+                      >
+                        <RefreshCw size={18} />
+                        <span className="text-[9px] font-black uppercase tracking-wider mt-1.5">Reconnect</span>
+                      </button>
+                    )}
 
                     {selectedPlugin.type === "external" && (
                       <button
