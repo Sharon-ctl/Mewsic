@@ -3,22 +3,29 @@ import { invoke } from '@tauri-apps/api/core';
 import { initPluginApi } from '../utils/pluginApi';
 import { useStore } from '../store';
 
-const MINECRAFT_PLUGIN_CODE = `
+let minecraftWs: WebSocket | null = null;
+let minecraftReconnectTimer: any = null;
+
+function runMinecraftPlugin() {
   console.log("[Mewsic Built-in] Minecraft Bridge Plugin Loaded!");
-  let ws = null;
-  let reconnectTimer = null;
 
   function connect() {
-    window.Mewsic.minecraftConnected = false;
+    if (window.Mewsic) {
+      window.Mewsic.minecraftConnected = false;
+    }
     window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
 
-    ws = new WebSocket("ws://127.0.0.1:3012");
+    const ws = new WebSocket("ws://127.0.0.1:3012");
+    minecraftWs = ws;
 
     ws.onopen = () => {
-      window.Mewsic.minecraftConnected = true;
+      if (window.Mewsic) {
+        window.Mewsic.minecraftConnected = true;
+        window.Mewsic.ui.addNotification("Connected to Minecraft!", "success", 3000);
+      }
       window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: true }));
-      window.Mewsic.ui.addNotification("Connected to Minecraft!", "success", 3000);
-      if (window.Mewsic.player.currentTrack) {
+
+      if (window.Mewsic && window.Mewsic.player.currentTrack) {
         const track = window.Mewsic.player.currentTrack;
         const sanitized = Object.assign({}, track, {
           title: track.title ? track.title.replace(/\s+/g, "_") : ""
@@ -29,8 +36,8 @@ const MINECRAFT_PLUGIN_CODE = `
         }));
       }
       // Send complete tracks list on connection
-      if (window.Mewsic.library && window.Mewsic.library.tracks) {
-        const sanitizedList = window.Mewsic.library.tracks.map((t) => 
+      if (window.Mewsic && window.Mewsic.library && window.Mewsic.library.tracks) {
+        const sanitizedList = window.Mewsic.library.tracks.map((t: any) => 
           Object.assign({}, t, {
             title: t.title ? t.title.replace(/\s+/g, "_") : ""
           })
@@ -41,8 +48,8 @@ const MINECRAFT_PLUGIN_CODE = `
         }));
       }
       // Send playlist list on connection
-      if (window.Mewsic.library && window.Mewsic.library.playlists) {
-        const sanitizedPlaylists = window.Mewsic.library.playlists.map((pl) => ({
+      if (window.Mewsic && window.Mewsic.library && window.Mewsic.library.playlists) {
+        const sanitizedPlaylists = window.Mewsic.library.playlists.map((pl: any) => ({
           id: pl.id,
           name: pl.name ? pl.name.replace(/\s+/g, "_") : ""
         }));
@@ -52,101 +59,147 @@ const MINECRAFT_PLUGIN_CODE = `
         }));
       }
       // Send current playlist on connection
-      const currentPlaylist = window.Mewsic.player.currentPlaylistName;
-      ws.send(JSON.stringify({
-        event: "playlist_changed",
-        data: currentPlaylist ? currentPlaylist.replace(/\s+/g, "_") : "library"
-      }));
+      if (window.Mewsic) {
+        const currentPlaylist = window.Mewsic.player.currentPlaylistName;
+        ws.send(JSON.stringify({
+          event: "playlist_changed",
+          data: currentPlaylist ? currentPlaylist.replace(/\s+/g, "_") : "library"
+        }));
+      }
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.action === "playNext") window.Mewsic.player.next();
-        if (msg.action === "playPrev") window.Mewsic.player.prev();
-        if (msg.action === "togglePlay") window.Mewsic.player.togglePlay();
-        if (msg.action === "playTrack" && msg.trackId) {
-          window.Mewsic.player.playTrack(msg.trackId);
-        }
-        if (msg.action === "toggleShuffle") {
-          window.Mewsic.player.toggleShuffle();
-        }
-        if (msg.action === "setRepeatMode" && msg.repeatMode) {
-          window.Mewsic.player.setRepeatMode(msg.repeatMode);
-        }
-        if (msg.action === "playPlaylist" && msg.playlistId) {
-          window.Mewsic.library.playPlaylist(msg.playlistId);
+        if (window.Mewsic) {
+          if (msg.action === "playNext") window.Mewsic.player.next();
+          if (msg.action === "playPrev") window.Mewsic.player.prev();
+          if (msg.action === "togglePlay") window.Mewsic.player.togglePlay();
+          if (msg.action === "playTrack" && msg.trackId) {
+            window.Mewsic.player.playTrack(msg.trackId);
+          }
+          if (msg.action === "toggleShuffle") {
+            window.Mewsic.player.toggleShuffle();
+          }
+          if (msg.action === "setRepeatMode" && msg.repeatMode) {
+            window.Mewsic.player.setRepeatMode(msg.repeatMode);
+          }
+          if (msg.action === "playPlaylist" && msg.playlistId) {
+            window.Mewsic.library.playPlaylist(msg.playlistId);
+          }
         }
       } catch (e) {}
     };
 
     ws.onclose = () => {
-      window.Mewsic.minecraftConnected = false;
+      if (window.Mewsic) {
+        window.Mewsic.minecraftConnected = false;
+      }
       window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
       // Try to reconnect every 5 seconds if disconnected
-      reconnectTimer = setTimeout(connect, 5000);
+      minecraftReconnectTimer = setTimeout(connect, 5000);
     };
 
     ws.onerror = () => {
-      window.Mewsic.minecraftConnected = false;
+      if (window.Mewsic) {
+        window.Mewsic.minecraftConnected = false;
+      }
       window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
       ws.close();
     };
   }
 
-  window.Mewsic.reconnectMinecraft = () => {
-    if (ws) {
-      ws.onclose = null;
-      ws.close();
-    }
-    if (reconnectTimer) clearTimeout(reconnectTimer);
-    connect();
-  };
+  if (window.Mewsic) {
+    window.Mewsic.reconnectMinecraft = () => {
+      if (minecraftWs) {
+        minecraftWs.onclose = null;
+        minecraftWs.onerror = null;
+        minecraftWs.close();
+      }
+      if (minecraftReconnectTimer) clearTimeout(minecraftReconnectTimer);
+      connect();
+    };
+  }
 
-  connect();
-
-  window.Mewsic.events.on('track_changed', (track) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
+  const trackChangedHandler = (track: any) => {
+    if (minecraftWs && minecraftWs.readyState === WebSocket.OPEN) {
       const sanitized = track ? Object.assign({}, track, {
         title: track.title ? track.title.replace(/\s+/g, "_") : ""
       }) : null;
-      ws.send(JSON.stringify({ event: "track_changed", data: sanitized }));
+      minecraftWs.send(JSON.stringify({ event: "track_changed", data: sanitized }));
     }
-  });
+  };
 
-  window.Mewsic.events.on('playback_state_changed', (isPlaying) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ event: "playback_state_changed", data: isPlaying }));
+  const playbackStateChangedHandler = (isPlaying: any) => {
+    if (minecraftWs && minecraftWs.readyState === WebSocket.OPEN) {
+      minecraftWs.send(JSON.stringify({ event: "playback_state_changed", data: isPlaying }));
     }
-  });
+  };
 
-  window.Mewsic.events.on('time_changed', (currentTime) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ event: "time_changed", data: currentTime }));
+  const timeChangedHandler = (currentTime: any) => {
+    if (minecraftWs && minecraftWs.readyState === WebSocket.OPEN) {
+      minecraftWs.send(JSON.stringify({ event: "time_changed", data: currentTime }));
     }
-  });
+  };
 
-  window.Mewsic.events.on('shuffle_changed', (shuffleEnabled) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ event: "shuffle_changed", data: shuffleEnabled }));
+  const shuffleChangedHandler = (shuffleEnabled: any) => {
+    if (minecraftWs && minecraftWs.readyState === WebSocket.OPEN) {
+      minecraftWs.send(JSON.stringify({ event: "shuffle_changed", data: shuffleEnabled }));
     }
-  });
+  };
 
-  window.Mewsic.events.on('repeat_changed', (repeatMode) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ event: "repeat_changed", data: repeatMode }));
+  const repeatChangedHandler = (repeatMode: any) => {
+    if (minecraftWs && minecraftWs.readyState === WebSocket.OPEN) {
+      minecraftWs.send(JSON.stringify({ event: "repeat_changed", data: repeatMode }));
     }
-  });
+  };
 
-  window.Mewsic.events.on('playlist_changed', (playlistName) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
+  const playlistChangedHandler = (playlistName: any) => {
+    if (minecraftWs && minecraftWs.readyState === WebSocket.OPEN) {
+      minecraftWs.send(JSON.stringify({
         event: "playlist_changed",
         data: playlistName ? playlistName.replace(/\s+/g, "_") : "library"
       }));
     }
-  });
-`;
+  };
+
+  if (window.Mewsic) {
+    window.Mewsic.events.on('track_changed', trackChangedHandler);
+    window.Mewsic.events.on('playback_state_changed', playbackStateChangedHandler);
+    window.Mewsic.events.on('time_changed', timeChangedHandler);
+    window.Mewsic.events.on('shuffle_changed', shuffleChangedHandler);
+    window.Mewsic.events.on('repeat_changed', repeatChangedHandler);
+    window.Mewsic.events.on('playlist_changed', playlistChangedHandler);
+
+    window.Mewsic.disconnectMinecraft = () => {
+      if (minecraftWs) {
+        minecraftWs.onclose = null;
+        minecraftWs.onerror = null;
+        minecraftWs.close();
+        minecraftWs = null;
+      }
+      if (minecraftReconnectTimer) {
+        clearTimeout(minecraftReconnectTimer);
+        minecraftReconnectTimer = null;
+      }
+      if (window.Mewsic) {
+        window.Mewsic.minecraftConnected = false;
+      }
+      window.dispatchEvent(new CustomEvent("minecraft-connection-changed", { detail: false }));
+
+      if (window.Mewsic) {
+        window.Mewsic.events.off('track_changed', trackChangedHandler);
+        window.Mewsic.events.off('playback_state_changed', playbackStateChangedHandler);
+        window.Mewsic.events.off('time_changed', timeChangedHandler);
+        window.Mewsic.events.off('shuffle_changed', shuffleChangedHandler);
+        window.Mewsic.events.off('repeat_changed', repeatChangedHandler);
+        window.Mewsic.events.off('playlist_changed', playlistChangedHandler);
+      }
+    };
+  }
+
+  connect();
+}
 
 export interface PluginManifest {
   name?: string;
@@ -171,9 +224,31 @@ export function usePlugins() {
   useEffect(() => {
     async function loadPlugins() {
       try {
-        // Ensure the Mewsic plugin API is initialized before any plugins run
         initPluginApi();
+      } catch (e) {
+        console.error('Failed to initialize Plugin API:', e);
+      }
 
+      // 1. Built-in Plugins
+      if (minecraftIntegrationEnabled) {
+        if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft !== 'function') {
+          try {
+            runMinecraftPlugin();
+          } catch (e) {
+            console.error('Error executing built-in Minecraft plugin:', e);
+          }
+        }
+      } else {
+        // Disconnect immediately if disabled
+        if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft === 'function') {
+          try {
+            window.Mewsic.disconnectMinecraft();
+          } catch (e) {}
+        }
+      }
+
+      // 2. External Plugins (Separate try-catch block to prevent breaking built-ins)
+      try {
         const loadedPlugins = await invoke<PluginData[]>('get_plugins');
         setPlugins(loadedPlugins);
         
@@ -208,29 +283,8 @@ export function usePlugins() {
             }
           }
         });
-
-        // Built-in Plugins
-        if (minecraftIntegrationEnabled) {
-          const scriptId = 'plugin-script-built-in-minecraft';
-          if (!document.getElementById(scriptId)) {
-            const script = document.createElement('script');
-            script.id = scriptId;
-            script.type = 'text/javascript';
-            script.innerHTML = `
-              (function() {
-                try {
-                  ${MINECRAFT_PLUGIN_CODE}
-                } catch (e) {
-                  console.error('Error executing built-in Minecraft plugin:', e);
-                }
-              })();
-            `;
-            document.body.appendChild(script);
-          }
-        }
-
       } catch (e: any) {
-        console.error('Failed to load plugins:', e);
+        console.error('Failed to load external plugins:', e);
         setError(e.toString());
       }
     }
@@ -249,6 +303,12 @@ export function usePlugins() {
       
       const builtinScript = document.getElementById('plugin-script-built-in-minecraft');
       if (builtinScript) builtinScript.remove();
+
+      if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft === 'function') {
+        try {
+          window.Mewsic.disconnectMinecraft();
+        } catch (e) {}
+      }
     };
   }, [minecraftIntegrationEnabled]); 
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, Puzzle, Box, Info, RefreshCw, FolderOpen, Power, Trash2, Sliders, Terminal } from "lucide-react";
+import { X, Puzzle, Box, Info, RefreshCw, FolderOpen, Power, Trash2, Sliders, Terminal, ExternalLink } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-shell";
 import { useStore } from "../../store";
 import { usePlugins, type PluginData } from "../../hooks/usePlugins";
 
@@ -43,7 +44,7 @@ const BUILT_IN_PLUGINS = [
     name: "Minecraft Bridge",
     version: "1.0.0",
     author: "Mewsic Team",
-    description: "",
+    description: "Bridges the Mewsic desktop music player with Minecraft via a local WebSocket server. Displays the currently playing track on the Game Menu Screen. This plugin works alongside the Mewsic-Bridge Minecraft mod to connect and control the Mewsic app within Minecraft itself. This can be useful if you're just chilling and don't want to switch apps to change music or if you're recording and don't want to reveal your desktop to viewers. Download the companion mod on Modrinth.",
     icon: <MinecraftIcon />,
     accentColor: "#2b714b",
     tags: ["Integration", "Gaming", "Local Link"],
@@ -67,14 +68,12 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
     setMinecraftIntegrationEnabled,
     discordEnabled,
     setDiscordEnabled,
-    isDevMode,
     addNotification
   } = useStore((s) => ({
     minecraftIntegrationEnabled: s.minecraftIntegrationEnabled,
     setMinecraftIntegrationEnabled: s.setMinecraftIntegrationEnabled,
     discordEnabled: s.discordEnabled,
     setDiscordEnabled: s.setDiscordEnabled,
-    isDevMode: s.isDevMode,
     addNotification: s.addNotification,
   }));
 
@@ -418,6 +417,17 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
                       >
                         <RefreshCw size={18} />
                         <span className="text-[9px] font-black uppercase tracking-wider mt-1.5">Reconnect</span>
+                      </button>
+                    )}
+
+                    {selectedPlugin.id === "minecraft-bridge" && (
+                      <button
+                        onClick={() => open("https://modrinth.com/mod/mewsic-bridge")}
+                        className="flex flex-col items-center justify-center w-16 h-16 rounded-2xl border border-blue-500/20 hover:border-blue-500/40 bg-blue-500/5 text-blue-400 hover:bg-blue-500/10 transition-all cursor-pointer"
+                        title="Download Mewsic-Bridge mod"
+                      >
+                        <ExternalLink size={18} />
+                        <span className="text-[9px] font-black uppercase tracking-wider mt-1.5">Get Mod</span>
                       </button>
                     )}
 
