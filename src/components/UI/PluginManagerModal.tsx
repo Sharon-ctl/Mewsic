@@ -62,6 +62,11 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
   const [selectedPluginId, setSelectedPluginId] = useState<string>("discord-rpc");
   const [selectedDetailTab, setSelectedDetailTab] = useState<"about" | "details" | "features">("about");
   const [searchQuery, setSearchQuery] = useState("");
+  const [disabledExternalPlugins, setDisabledExternalPlugins] = useState<string[]>([]);
+
+  useEffect(() => {
+    setDisabledExternalPlugins(JSON.parse(localStorage.getItem('mewsic_disabled_plugins') || '[]'));
+  }, []);
 
   const {
     minecraftIntegrationEnabled,
@@ -150,7 +155,7 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
       tags: p.manifest?.tags ?? ["External", "User Plugin"],
       features: p.manifest?.features ?? ["Custom JavaScript execution", "Custom UI Styles (CSS)"],
       type: "external" as const,
-      isEnabled: true,
+      isEnabled: !disabledExternalPlugins.includes(p.id),
       isDisabled: false
     }))
   ];
@@ -386,6 +391,13 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
                         if (selectedPlugin.type === "builtin") {
                           const setter = builtinSetters[selectedPlugin.id];
                           setter(!selectedPlugin.isEnabled);
+                        } else {
+                          const newDisabled = selectedPlugin.isEnabled
+                            ? [...disabledExternalPlugins, selectedPlugin.id]
+                            : disabledExternalPlugins.filter(id => id !== selectedPlugin.id);
+                          setDisabledExternalPlugins(newDisabled);
+                          localStorage.setItem('mewsic_disabled_plugins', JSON.stringify(newDisabled));
+                          addNotification?.(`Plugin ${selectedPlugin.name} ${selectedPlugin.isEnabled ? 'disabled' : 'enabled'}. Reload to apply.`, "info");
                         }
                       }}
                       className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all border ${
@@ -433,9 +445,17 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
 
                     {selectedPlugin.type === "external" && (
                       <button
-                        onClick={handleOpenPluginsFolder}
+                        onClick={async () => {
+                          try {
+                            await invoke("delete_plugin", { pluginId: selectedPlugin.id });
+                            addNotification?.(`Plugin ${selectedPlugin.name} deleted`, "success");
+                            setTimeout(() => window.location.reload(), 1000);
+                          } catch (e: any) {
+                            addNotification?.(`Failed to delete plugin: ${e}`, "error");
+                          }
+                        }}
                         className="flex flex-col items-center justify-center w-16 h-16 rounded-2xl border border-red-500/20 hover:border-red-500/40 bg-red-500/5 text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
-                        title="Uninstall (Delete folder)"
+                        title="Uninstall plugin"
                       >
                         <Trash2 size={18} />
                         <span className="text-[9px] font-black uppercase tracking-wider mt-1.5">Delete</span>

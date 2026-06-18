@@ -250,10 +250,18 @@ export function usePlugins() {
       // 2. External Plugins (Separate try-catch block to prevent breaking built-ins)
       try {
         const loadedPlugins = await invoke<PluginData[]>('get_plugins');
+        console.log('[PluginLoader] Received plugins from backend:', loadedPlugins.map(p => p.id));
         setPlugins(loadedPlugins);
         
+        const disabledPlugins = JSON.parse(localStorage.getItem('mewsic_disabled_plugins') || '[]');
+
         // Inject CSS and JS
-        loadedPlugins.forEach(plugin => {
+        for (const plugin of loadedPlugins) {
+          if (disabledPlugins.includes(plugin.id)) {
+            console.log(`[PluginLoader] Skipping disabled plugin: ${plugin.id}`);
+            continue;
+          }
+
           if (plugin.css_content) {
             const styleId = `plugin-style-${plugin.id}`;
             if (!document.getElementById(styleId)) {
@@ -267,22 +275,29 @@ export function usePlugins() {
           if (plugin.js_content) {
             const scriptId = `plugin-script-${plugin.id}`;
             if (!document.getElementById(scriptId)) {
-              const script = document.createElement('script');
-              script.id = scriptId;
-              script.type = 'text/javascript';
-              script.innerHTML = `
-                (function() {
-                  try {
-                    ${plugin.js_content}
-                  } catch (e) {
-                    console.error('Error executing plugin ${plugin.id}:', e);
-                  }
-                })();
-              `;
-              document.body.appendChild(script);
+              console.log(`[PluginLoader] Executing plugin: ${plugin.id}`);
+              try {
+                // Use Blob URL - works within Tauri CSP and runs in real script scope
+                const blob = new Blob([plugin.js_content], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                const script = document.createElement('script');
+                script.id = scriptId;
+                script.src = url;
+                script.onload = () => {
+                  URL.revokeObjectURL(url);
+                  console.log(`[PluginLoader] Plugin executed successfully: ${plugin.id}`);
+                };
+                script.onerror = (e) => {
+                  URL.revokeObjectURL(url);
+                  console.error(`[PluginLoader] Plugin script error (${plugin.id}):`, e);
+                };
+                document.body.appendChild(script);
+              } catch (e) {
+                console.error(`[PluginLoader] Error executing plugin ${plugin.id}:`, e);
+              }
             }
           }
-        });
+        }
       } catch (e: any) {
         console.error('Failed to load external plugins:', e);
         setError(e.toString());

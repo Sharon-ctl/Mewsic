@@ -82,6 +82,8 @@ interface UISlice {
   activePlaylistId: string | null;
   searchQuery: string;
   accentColor: AccentPreset;
+  customAccentColor: string;
+  customColorHistory: string[];
   volume: number;
   repeatMode: "off" | "one" | "all";
   shuffleEnabled: boolean;
@@ -129,6 +131,8 @@ interface UISlice {
   setActivePlaylist: (id: string | null, skipHistory?: boolean) => void;
   setSearchQuery: (q: string) => void;
   setAccentColor: (c: AccentPreset) => void;
+  setCustomAccentColor: (c: string) => void;
+  addCustomColorToHistory: (c: string) => void;
   setVolume: (v: number) => void;
   setRepeatMode: (m: "off" | "one" | "all") => void;
   toggleShuffle: () => void;
@@ -399,6 +403,8 @@ export const useStore = create<Store>()(
       activePlaylistId: null,
       searchQuery: "",
       accentColor: "mint",
+      customAccentColor: "#808080",
+      customColorHistory: [],
       volume: 0.8,
       repeatMode: "off",
       shuffleEnabled: false,
@@ -476,6 +482,11 @@ export const useStore = create<Store>()(
         document.documentElement.dataset.accent = c;
         set({ accentColor: c });
       },
+      setCustomAccentColor: (c) => set({ customAccentColor: c }),
+      addCustomColorToHistory: (c) => set((s) => {
+        const h = [c, ...s.customColorHistory.filter(color => color !== c)].slice(0, 5);
+        return { customColorHistory: h };
+      }),
       setVolume: (v) => set({ volume: v }),
       setRepeatMode: (m) => set({ repeatMode: m }),
       toggleShuffle: () => {

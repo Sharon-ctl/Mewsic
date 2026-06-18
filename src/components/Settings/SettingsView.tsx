@@ -17,6 +17,7 @@ import { ConfirmationModal } from "../UI/ConfirmationModal";
 import { UpdateModal } from "../UI/UpdateModal";
 import { PluginManagerModal } from "../UI/PluginManagerModal";
 import { ThemedSlider } from "../UI/ThemedSlider";
+import { ColorPickerModal } from "./ColorPickerModal";
 import type { ShortcutMap, Shortcut } from "../../types";
 
 function Section({
@@ -50,8 +51,10 @@ import { useDisplayData } from "../../hooks/useDisplayData";
 export function SettingsView() {
   const {
     accentColor,
+    customAccentColor,
     volume,
     setAccentColor,
+    setCustomAccentColor,
     setVolume,
     guiScale,
     setGuiScale,
@@ -83,8 +86,10 @@ export function SettingsView() {
     setMinecraftIntegrationEnabled,
   } = useStore(useShallow((s) => ({
     accentColor: s.accentColor,
+    customAccentColor: s.customAccentColor,
     volume: s.volume,
     setAccentColor: s.setAccentColor,
+    setCustomAccentColor: s.setCustomAccentColor,
     setVolume: s.setVolume,
     guiScale: s.guiScale,
     setGuiScale: s.setGuiScale,
@@ -129,6 +134,8 @@ export function SettingsView() {
   const [showPluginManager, setShowPluginManager] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [refreshingPlaylists, setRefreshingPlaylists] = useState(false);
+  const [showPlugins, setShowPlugins] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
   const [clearingDiscord, setClearingDiscord] = useState(false);
   const [showFlashbangWarning, setShowFlashbangWarning] = useState(false);
@@ -240,15 +247,22 @@ export function SettingsView() {
                 <div className="grid grid-cols-5 gap-y-6 mb-8">
                   {ACCENT_PRESETS.map((preset) => {
                     const isActive = accentColor === preset.id;
+                    const hexColor = preset.id === "custom" ? customAccentColor : preset.hex;
                     return (
-                      <button key={preset.id} onClick={() => setAccentColor(preset.id as any)} className="flex flex-col items-center gap-2 group">
-                        <div className={`relative w-8 h-8 rounded-full transition-all duration-300 ${isActive ? "scale-110 shadow-lg" : "hover:scale-105"}`} style={{ backgroundColor: preset.hex, boxShadow: isActive ? `0 0 15px ${preset.hex}80` : 'none', border: isActive ? `2px solid white` : '1px solid rgba(255,255,255,0.1)' }}>
+                      <div key={preset.id} className="flex flex-col items-center gap-2 group relative">
+                        <button 
+                          onClick={() => {
+                            setAccentColor(preset.id as any);
+                            if (preset.id === "custom") setShowColorPicker(true);
+                          }} 
+                          className={`relative w-8 h-8 rounded-full transition-all duration-300 ${isActive ? "scale-110 shadow-lg" : "hover:scale-105"}`} 
+                          style={{ backgroundColor: hexColor, boxShadow: isActive ? `0 0 15px ${hexColor}80` : 'none', border: isActive ? `2px solid white` : '1px solid rgba(255,255,255,0.1)' }}>
                           {isActive && <div className="absolute inset-0 rounded-full border-2 border-black/20" />}
-                        </div>
+                        </button>
                         <span className={`text-[9px] font-bold uppercase tracking-widest transition-colors text-center ${isActive ? "text-accent" : "text-text-muted group-hover:text-text-primary"}`}>
                           {preset.label.split(' ')[0]}
                         </span>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -685,6 +699,9 @@ export function SettingsView() {
 
       {showPluginManager && (
         <PluginManagerModal onClose={() => setShowPluginManager(false)} />
+      )}
+      {showColorPicker && (
+        <ColorPickerModal onClose={() => setShowColorPicker(false)} />
       )}
     </div>
   );

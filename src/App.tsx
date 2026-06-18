@@ -33,8 +33,14 @@ import { TitleBar } from "./components/UI/TitleBar";
 import { Cyberdeck } from "./components/UI/Cyberdeck";
 import { DevOverlay } from "./components/UI/DevOverlay";
 import { GlobalTooltip } from "./components/UI/GlobalTooltip";
+import { PluginView } from "./components/UI/PluginView";
+
 function ViewRouter() {
   const { activeView } = useStore(useShallow((s) => ({ activeView: s.activeView })));
+
+  if (activeView && activeView.startsWith("plugin:")) {
+    return <PluginView viewId={activeView} />;
+  }
 
   switch (activeView) {
     case "home":     return <HomeView />;
@@ -50,7 +56,7 @@ function ViewRouter() {
 
 export default function App() {
   const {
-    activeView, accentColor, theme, musicDir, playlistsDir, coversDir,
+    activeView, accentColor, customAccentColor, theme, musicDir, playlistsDir, coversDir,
     setMusicDir, setPlaylistsDir, setCoversDir, guiScale, showAbout,
     editTrack, addTrack, deleteTrackRequest, setEditTrack, setAddTrack,
     setDeleteTrack, removeTrack, addNotification, customTitlebar,
@@ -62,6 +68,7 @@ export default function App() {
   } = useStore(useShallow((s) => ({
     activeView: s.activeView,
     accentColor: s.accentColor,
+    customAccentColor: s.customAccentColor,
     theme: s.theme,
     musicDir: s.musicDir,
     playlistsDir: s.playlistsDir,
@@ -106,7 +113,32 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.accent = accentColor;
-  }, [accentColor]);
+    if (accentColor === "custom") {
+      const hex = customAccentColor;
+      
+      // Convert hex to rgb
+      const r = parseInt(hex.slice(1, 3), 16) || 255;
+      const g = parseInt(hex.slice(3, 5), 16) || 255;
+      const b = parseInt(hex.slice(5, 7), 16) || 255;
+      const rgb = `${r}, ${g}, ${b}`;
+
+      document.documentElement.style.setProperty("--accent", hex);
+      document.documentElement.style.setProperty("--text-accent", hex);
+      document.documentElement.style.setProperty("--accent-rgb", rgb);
+      document.documentElement.style.setProperty("--accent-muted", `rgba(${rgb}, 0.15)`);
+      document.documentElement.style.setProperty("--accent-glow", `rgba(${rgb}, 0.35)`);
+      document.documentElement.style.setProperty("--accent-dim", hex);
+      document.documentElement.style.setProperty("--accent-bright", hex);
+    } else {
+      document.documentElement.style.removeProperty("--accent");
+      document.documentElement.style.removeProperty("--text-accent");
+      document.documentElement.style.removeProperty("--accent-rgb");
+      document.documentElement.style.removeProperty("--accent-muted");
+      document.documentElement.style.removeProperty("--accent-glow");
+      document.documentElement.style.removeProperty("--accent-dim");
+      document.documentElement.style.removeProperty("--accent-bright");
+    }
+  }, [accentColor, customAccentColor]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

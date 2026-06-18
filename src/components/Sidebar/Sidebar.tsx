@@ -7,6 +7,7 @@ import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { useLibrary } from "../../hooks/useLibrary";
 import type { ViewId } from "../../types";
+import { useEffect, useState } from "react";
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -52,6 +53,25 @@ export function Sidebar() {
 
   const { displayPlaylists } = useDisplayData();
   const { } = useLibrary();
+
+  const [pluginSidebarItems, setPluginSidebarItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    const updateItems = () => {
+      if (window.Mewsic && window.Mewsic.ui && window.Mewsic.ui.registry) {
+        setPluginSidebarItems(Array.from(window.Mewsic.ui.registry.sidebarComponents.values()));
+      }
+    };
+
+    updateItems();
+    window.addEventListener("plugin-ui-updated", updateItems);
+    // Also poll so we catch registrations that happen after the event fires
+    const poll = setInterval(updateItems, 500);
+    return () => {
+      window.removeEventListener("plugin-ui-updated", updateItems);
+      clearInterval(poll);
+    };
+  }, []);
 
   const handleImportPlaylist = () => {
     setShowImportPlaylist(true);
@@ -133,6 +153,24 @@ export function Sidebar() {
           active={activeView === "settings"}
           onClick={() => setActiveView("settings")}
         />
+
+        {/* Plugin Sidebar Components */}
+        {pluginSidebarItems.map((item) => (
+          <NavItem
+            key={item.id || item.viewId}
+            icon={
+              item.icon ? (
+                <div dangerouslySetInnerHTML={{ __html: item.icon }} className="w-[15px] h-[15px] flex items-center justify-center" />
+              ) : (
+                <Activity size={15} />
+              )
+            }
+            label={item.name}
+            view={item.viewId}
+            active={activeView === item.viewId}
+            onClick={() => setActiveView(item.viewId)}
+          />
+        ))}
       </nav>
 
       {/* Playlists */}

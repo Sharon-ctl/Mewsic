@@ -140,7 +140,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
             else addLog("INVALID THEME (DARK/LIGHT).", "error");
             break;
           case "accent":
-            const presets = ["mint", "sapphire", "violet", "rose", "amber", "cyan", "orange", "fuchsia", "emerald", "indigo"];
+            const presets = ["mint", "sapphire", "violet", "rose", "amber", "cyan", "orange", "fuchsia", "emerald", "custom"];
             if (presets.includes(val.toLowerCase())) {
               setAccentColor(val.toLowerCase() as any);
               addLog(`ACCENT -> ${val.toUpperCase()}`, "success");
@@ -200,7 +200,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
       case "orange":
       case "fuchsia":
       case "emerald":
-      case "indigo":
+      case "custom":
         setAccentColor(action as any);
         addLog(`ACCENT -> ${action.toUpperCase()}`, "success");
         break;

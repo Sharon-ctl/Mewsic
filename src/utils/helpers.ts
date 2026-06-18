@@ -48,7 +48,7 @@ export const ACCENT_PRESETS = [
   { id: "orange",        label: "Orange",    hex: "#f97316" },
   { id: "fuchsia",       label: "Fuchsia",   hex: "#d946ef" },
   { id: "emerald",       label: "Emerald",   hex: "#10b981" },
-  { id: "indigo",        label: "Indigo",    hex: "#6366f1" },
+  { id: "custom",        label: "Custom",    hex: "#ffffff" },
 ];
 
 export function pluralize(count: number, word: string): string {

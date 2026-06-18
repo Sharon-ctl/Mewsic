@@ -17,6 +17,8 @@ export interface Track {
   sourceId?: string;
   provider?: string;
   coverArt?: string;
+  albumArt?: string;
+  metadata?: Record<string, any>;
 }
 
 export interface Playlist {
@@ -51,7 +53,7 @@ export type AccentPreset =
   | "orange"
   | "fuchsia"
   | "emerald"
-  | "indigo";
+  | "custom";
 
 export interface AppSettings {
   accentColor: AccentPreset;
@@ -61,7 +63,7 @@ export interface AppSettings {
   shuffleEnabled: boolean;
 }
 
-export type ViewId = "home" | "library" | "playlist" | "player" | "settings" | "harbour" | "audio";
+export type ViewId = "home" | "library" | "playlist" | "player" | "settings" | "harbour" | "audio" | (string & {});
 
 export interface PlayerState {
   currentTrack: Track | null;

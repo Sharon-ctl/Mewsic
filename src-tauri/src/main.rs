@@ -455,9 +455,11 @@ async fn get_plugins(app_handle: tauri::AppHandle) -> Result<Vec<PluginData>, St
         .map(|p| p.join("plugins"))
         .unwrap_or_else(|_| PathBuf::from("plugins"));
 
+    println!("[PluginLoader] Scanning plugins dir: {:?}", plugins_dir);
+
     if !plugins_dir.exists() {
         if let Err(e) = fs::create_dir_all(&plugins_dir) {
-            eprintln!("Failed to create plugins directory: {}", e);
+            eprintln!("[PluginLoader] Failed to create plugins directory: {}", e);
             return Ok(vec![]);
         }
     }
@@ -467,10 +469,13 @@ async fn get_plugins(app_handle: tauri::AppHandle) -> Result<Vec<PluginData>, St
     if let Ok(entries) = fs::read_dir(&plugins_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() {
+            println!("[PluginLoader] Examining path: {:?}", path);
+            if path.is_dir() && path.extension().and_then(|s| s.to_str()) == Some("mewsic") {
                 let manifest_path = path.join("manifest.json");
+                println!("[PluginLoader] Found .mewsic dir, checking manifest: {:?}", manifest_path);
                 if manifest_path.exists() {
-                    let id = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                    let id = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                    println!("[PluginLoader] Loaded plugin id: {}", id);
                     
                     let manifest_str = fs::read_to_string(&manifest_path).unwrap_or_default();
                     let manifest: serde_json::Value = serde_json::from_str(&manifest_str).unwrap_or(serde_json::json!({}));
@@ -484,12 +489,42 @@ async fn get_plugins(app_handle: tauri::AppHandle) -> Result<Vec<PluginData>, St
                         js_content,
                         css_content,
                     });
+                } else {
+                    println!("[PluginLoader] Manifest missing!");
                 }
             }
         }
     }
 
     Ok(plugins)
+}
+
+#[tauri::command]
+async fn delete_plugin(app_handle: tauri::AppHandle, plugin_id: String) -> Result<(), String> {
+    let plugins_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map(|p| p.join("plugins"))
+        .unwrap_or_else(|_| PathBuf::from("plugins"));
+
+    if !plugins_dir.exists() {
+        return Err("Plugins directory not found".into());
+    }
+
+    if let Ok(entries) = fs::read_dir(&plugins_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.extension().and_then(|s| s.to_str()) == Some("mewsic") {
+                let id = path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+                if id == plugin_id {
+                    fs::remove_dir_all(&path).map_err(|e| e.to_string())?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+    
+    Err("Plugin not found".into())
 }
 
 #[tauri::command]
@@ -2094,10 +2129,10 @@ fn main() {
             is_window_maximized,
             set_window_decorations,
             start_window_drag,
-            get_downloads_dir,
             clear_image_cache,
             get_plugins,
             get_plugins_dir,
+            delete_plugin,
             show_in_folder,
             is_discord_connected,
         ])
