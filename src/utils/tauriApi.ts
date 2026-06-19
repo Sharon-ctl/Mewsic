@@ -1,17 +1,10 @@
-/**
- * tauriApi.ts
- * ---------
- * Typed wrappers around Tauri's invoke() / filesystem APIs.
- * Rust uses snake_case; we expose camelCase on the TS side and
- * transform the payloads here so the rest of the app never
- * touches raw Tauri strings.
- */
-
 import { invoke, convertFileSrc as tauriConvertFileSrc } from "@tauri-apps/api/core";
 import type { Track, Playlist, AppPaths, ScanResult } from "../types";
 
 export function convertFileSrc(filePath: string): string {
-  // Normalize Windows paths by converting backslashes to forward slashes
+  if (filePath.startsWith("http://") || filePath.startsWith("https://") || filePath.startsWith("blob:")) {
+    return filePath;
+  }
   let path = filePath.replace(/\\/g, "/");
   if (!path.startsWith("/")) path = "/" + path;
   return `http://127.0.0.1:1422${encodeURI(path)}`;
@@ -42,44 +35,10 @@ function deepCamel(obj: unknown): unknown {
   return obj;
 }
 
-export async function getAppPaths(): Promise<AppPaths> {
-  const raw = await invoke<Record<string, string>>("get_app_paths");
-  return deepCamel(raw) as AppPaths;
+function toSnake(s: string): string {
+  return s.replace(/([A-Z])/g, (_, c) => `_${c.toLowerCase()}`);
 }
 
-export async function scanMusicDirectory(dirPath: string): Promise<ScanResult> {
-  const raw = await invoke<Record<string, unknown>>("scan_music_directory", {
-    dirPath: dirPath,
-  });
-  return deepCamel(raw) as ScanResult;
-}
-
-export async function getTrackMetadata(filePath: string): Promise<Track> {
-  const raw = await invoke<Record<string, unknown>>("get_track_metadata", {
-    filePath,
-  });
-  return deepCamel(raw) as Track;
-}
-
-export async function listPlaylists(playlistsDir: string): Promise<Playlist[]> {
-  const raw = await invoke<unknown[]>("list_playlists", { playlistsDir });
-  return (deepCamel(raw) as Playlist[]);
-}
-
-export async function createPlaylist(
-  playlistsDir: string,
-  name: string
-): Promise<Playlist> {
-  const raw = await invoke<Record<string, unknown>>("create_playlist", {
-    playlistsDir,
-    name,
-  });
-  return deepCamel(raw) as Playlist;
-}
-
-function toSnake(s: string) {
-  return s.replace(/([A-Z])/g, (_: string, c: string) => `_${c.toLowerCase()}`);
-}
 function deepSnake(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(deepSnake);
   if (obj !== null && typeof obj === "object") {
@@ -92,13 +51,37 @@ function deepSnake(obj: unknown): unknown {
   return obj;
 }
 
+export async function getAppPaths(): Promise<AppPaths> {
+  const raw = await invoke<Record<string, string>>("get_app_paths");
+  return deepCamel(raw) as AppPaths;
+}
+
+export async function scanMusicDirectory(dirPath: string): Promise<ScanResult> {
+  const raw = await invoke<Record<string, unknown>>("scan_music_directory", { dirPath });
+  return deepCamel(raw) as ScanResult;
+}
+
+export async function getTrackMetadata(filePath: string): Promise<Track> {
+  const raw = await invoke<Record<string, unknown>>("get_track_metadata", { filePath });
+  return deepCamel(raw) as Track;
+}
+
+export async function listPlaylists(playlistsDir: string): Promise<Playlist[]> {
+  const raw = await invoke<unknown[]>("list_playlists", { playlistsDir });
+  return deepCamel(raw) as Playlist[];
+}
+
+export async function createPlaylist(playlistsDir: string, name: string): Promise<Playlist> {
+  const raw = await invoke<Record<string, unknown>>("create_playlist", { playlistsDir, name });
+  return deepCamel(raw) as Playlist;
+}
+
 export async function savePlaylist(playlist: Playlist): Promise<void> {
   await invoke("save_playlist", { playlist: deepSnake(playlist) });
 }
 
 export async function renamePlaylist(playlist: Playlist, newName: string): Promise<Playlist> {
   const result = await invoke<any>("rename_playlist", { playlist: deepSnake(playlist), newName });
-  // Map snake_case result back to camelCase Playlist with fallbacks
   return {
     ...playlist,
     id: result.id ?? playlist.id,
@@ -117,18 +100,28 @@ export async function deletePlaylist(filePath: string): Promise<void> {
 
 export const clearImageCache = () => invoke("clear_image_cache");
 export const deleteTrack = (filePath: string) => invoke("delete_track", { filePath });
+export const getStreamUrl = (url: string): Promise<string> => invoke("get_stream_url", { url });
+
+export interface ResolvedStream {
+  url: string;
+  title: string;
+  artist: string;
+  duration: number;
+  coverArt: string;
+}
+
+export async function resolveStreamMetadata(url: string): Promise<ResolvedStream> {
+  const raw = await invoke("resolve_stream_metadata", { url });
+  return deepCamel(raw) as ResolvedStream;
+}
 
 export async function importPlaylist(playlistsDir: string, sourcePath: string): Promise<Playlist> {
-  const raw = await invoke<Record<string, unknown>>("import_playlist", {
-    playlistsDir,
-    sourcePath,
-  });
+  const raw = await invoke<Record<string, unknown>>("import_playlist", { playlistsDir, sourcePath });
   return deepCamel(raw) as Playlist;
 }
 
 export async function pickDirectory(): Promise<string | null> {
-  const result = await invoke<string | null>("pick_directory");
-  return result;
+  return invoke<string | null>("pick_directory");
 }
 
 export function readAudioFile(filePath: string): string {
@@ -148,25 +141,11 @@ export interface TrackMetadata {
 }
 
 export async function saveTrackMetadata(filePath: string, metadata: TrackMetadata): Promise<void> {
-  function toSnake(s: string) {
-    return s.replace(/([A-Z])/g, (_: string, c: string) => `_${c.toLowerCase()}`);
-  }
-  function deepSnake(obj: unknown): unknown {
-    if (Array.isArray(obj)) return obj.map(deepSnake);
-    if (obj !== null && typeof obj === "object") {
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
-        out[toSnake(k)] = deepSnake(v);
-      }
-      return out;
-    }
-    return obj;
-  }
   await invoke("save_track_metadata", { filePath, metadata: deepSnake(metadata) });
 }
 
 const MAX_COVER_CACHE = 50;
-const CACHE_TTL = 30000; // 30 seconds — long enough for visible items, short enough to evict
+const CACHE_TTL = 30000;
 
 interface CacheEntry {
   url: string;
@@ -175,7 +154,6 @@ interface CacheEntry {
 
 const coverCache = new Map<string, CacheEntry>();
 
-// Prune cache periodically
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of coverCache.entries()) {
@@ -185,7 +163,7 @@ setInterval(() => {
   }
 }, 10000);
 
-export async function getCoverArt(filePath: string, size: number = 256, lowEnd: boolean = false): Promise<string | null> {
+export async function getCoverArt(filePath: string, size = 256, lowEnd = false): Promise<string | null> {
   const cacheKey = `${filePath}_${size}_${lowEnd}`;
   const cached = coverCache.get(cacheKey);
 
@@ -198,12 +176,10 @@ export async function getCoverArt(filePath: string, size: number = 256, lowEnd: 
     const result = await invoke<string | null>("get_cover_art", { filePath });
     if (result) {
       const url = `${convertFileSrc(result)}?thumb=1&size=${size}${lowEnd ? "&lowend=1" : ""}`;
-
       if (coverCache.size >= MAX_COVER_CACHE) {
         const firstKey = coverCache.keys().next().value;
         if (firstKey) coverCache.delete(firstKey);
       }
-
       coverCache.set(cacheKey, { url, lastUsed: Date.now() });
       return url;
     }
@@ -242,7 +218,7 @@ export async function toggleFullscreen(): Promise<void> {
 }
 
 export async function importFiles(sources: string[], targetDir: string): Promise<number> {
-  return await invoke("import_files", { sources, targetDir });
+  return invoke("import_files", { sources, targetDir });
 }
 
 export interface HarbourSearchResult {
@@ -274,18 +250,8 @@ export async function downloadTrack(
   downloadId: string,
   provider?: string
 ): Promise<string> {
-  return await invoke("download_track", {
-    musicDir,
-    title,
-    artist,
-    album,
-    coverArt,
-    downloadId,
-    provider
-  });
+  return invoke("download_track", { musicDir, title, artist, album, coverArt, downloadId, provider });
 }
-
-// ── OS Media Controls (MPRIS / SMTC / Now Playing) ────────────────────────
 
 export async function updateMediaMetadata(
   title: string,
@@ -297,10 +263,7 @@ export async function updateMediaMetadata(
   await invoke("update_media_metadata", { title, artist, album, coverUrl, duration });
 }
 
-export async function updateMediaPlayback(
-  isPlaying: boolean,
-  progress?: number
-): Promise<void> {
+export async function updateMediaPlayback(isPlaying: boolean, progress?: number): Promise<void> {
   await invoke("update_media_playback", { isPlaying, progress });
 }
 

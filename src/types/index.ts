@@ -16,6 +16,7 @@ export interface Track {
   dateAdded: number;
   sourceId?: string;
   provider?: string;
+  isVirtual?: boolean;
   coverArt?: string;
   albumArt?: string;
   metadata?: Record<string, any>;
@@ -63,7 +64,7 @@ export interface AppSettings {
   shuffleEnabled: boolean;
 }
 
-export type ViewId = "home" | "library" | "playlist" | "player" | "settings" | "harbour" | "audio" | (string & {});
+export type ViewId = "home" | "library" | "playlist" | "player" | "settings" | "harbour" | "audio" | "plugins" | (string & {});
 
 export interface PlayerState {
   currentTrack: Track | null;

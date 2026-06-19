@@ -52,6 +52,7 @@ interface PlayerSlice {
 
 interface LibrarySlice {
   tracks: Track[];
+  virtualTracks: Track[];
   playlists: Playlist[];
   isScanning: boolean;
   scanProgress: number;
@@ -63,6 +64,8 @@ interface LibrarySlice {
   setTracks: (tracks: Track[]) => void;
   updateTrack: (updated: Track) => void;
   addTracks: (tracks: Track[]) => void;
+  addVirtualTrack: (track: Track) => void;
+  removeVirtualTrack: (trackId: string) => void;
   setPlaylists: (playlists: Playlist[]) => void;
   addPlaylist: (p: Playlist) => void;
   updatePlaylist: (p: Playlist) => void;
@@ -312,6 +315,7 @@ export const useStore = create<Store>()(
 
       // ── Library ─────────────────────────────────────────────────────────────
       tracks: [],
+      virtualTracks: [],
       playlists: [],
       isScanning: false,
       scanProgress: 0,
@@ -320,10 +324,17 @@ export const useStore = create<Store>()(
       coversDir: "",
       discordCoverCache: {},
 
-      setTracks: (tracks) => set({ tracks }),
+      setTracks: (tracks) =>
+        set((s) => {
+          const virtuals = s.virtualTracks || [];
+          const virtualIds = new Set(virtuals.map((t) => t.id));
+          const filteredScanned = tracks.filter((t) => !virtualIds.has(t.id));
+          return { tracks: [...filteredScanned, ...virtuals] };
+        }),
       updateTrack: (updated: Track) =>
         set((s) => ({
           tracks: s.tracks.map((t) => (t.id === updated.id ? updated : t)),
+          virtualTracks: (s.virtualTracks || []).map((t) => (t.id === updated.id ? updated : t)),
           currentTrack: s.currentTrack?.id === updated.id ? updated : s.currentTrack,
           queue: s.queue.map((t) => (t.id === updated.id ? updated : t)),
           originalQueue: s.originalQueue.map((t) => (t.id === updated.id ? updated : t)),
@@ -331,9 +342,33 @@ export const useStore = create<Store>()(
       addTracks: (incoming) => {
         const existing = get().tracks;
         const ids = new Set(existing.map((t) => t.id));
-        const merged = [...existing, ...incoming.filter((t) => !ids.has(t.id))];
-        set({ tracks: merged });
+        const mergedScanned = [...existing, ...incoming.filter((t) => !ids.has(t.id))];
+        
+        const virtuals = get().virtualTracks || [];
+        const virtualIds = new Set(virtuals.map((t) => t.id));
+        const filteredMerged = mergedScanned.filter((t) => !virtualIds.has(t.id));
+        set({ tracks: [...filteredMerged, ...virtuals] });
       },
+      addVirtualTrack: (track) =>
+        set((s) => {
+          const virtualTrack = { ...track, provider: "virtual", isVirtual: true };
+          const exists = (s.virtualTracks || []).some((t) => t.id === virtualTrack.id);
+          const newVirtuals = exists
+            ? s.virtualTracks.map((t) => (t.id === virtualTrack.id ? virtualTrack : t))
+            : [...(s.virtualTracks || []), virtualTrack];
+          
+          const tracksExists = s.tracks.some((t) => t.id === virtualTrack.id);
+          const newTracks = tracksExists
+            ? s.tracks.map((t) => (t.id === virtualTrack.id ? virtualTrack : t))
+            : [...s.tracks, virtualTrack];
+
+          return { virtualTracks: newVirtuals, tracks: newTracks };
+        }),
+      removeVirtualTrack: (trackId) =>
+        set((s) => ({
+          virtualTracks: (s.virtualTracks || []).filter((t) => t.id !== trackId),
+          tracks: s.tracks.filter((t) => t.id !== trackId),
+        })),
       setPlaylists: (playlists) => set({ playlists }),
       addPlaylist: (p) =>
         set((s) => {
@@ -358,7 +393,7 @@ export const useStore = create<Store>()(
       setCoversDir: (dir) => set({ coversDir: dir }),
       setDiscordCoverCache: (id, url) => set((s) => ({ discordCoverCache: { ...s.discordCoverCache, [id]: url } })),
       removeTrack: (id) => {
-        const { tracks, playlists, currentTrack, queue, originalQueue, queueIndex } = get();
+        const { tracks, playlists, currentTrack, queue, originalQueue, queueIndex, virtualTracks } = get();
         
         // Remove from playlists
         const updatedPlaylists = playlists.map(pl => ({
@@ -390,6 +425,7 @@ export const useStore = create<Store>()(
 
         set({
           tracks: tracks.filter(t => t.id !== id),
+          virtualTracks: (virtualTracks || []).filter(t => t.id !== id),
           playlists: updatedPlaylists,
           queue: updatedQueue,
           originalQueue: updatedOriginalQueue,
@@ -733,6 +769,7 @@ export const useStore = create<Store>()(
         musicDir: s.musicDir,
         playlistsDir: s.playlistsDir,
         coversDir: s.coversDir,
+        virtualTracks: s.virtualTracks,
         guiScale: s.guiScale,
         trayEnabled: s.trayEnabled,
         libraryViewMode: s.libraryViewMode,

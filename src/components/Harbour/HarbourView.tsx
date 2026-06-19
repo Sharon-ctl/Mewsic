@@ -41,6 +41,31 @@ export default function HarbourView() {
   const [dependencyProgress, setDependencyProgress] = useState<{ytdlp: number, ffmpeg: number}>({ytdlp: 0, ffmpeg: 0});
   const [currentDep, setCurrentDep] = useState<"yt-dlp" | "ffmpeg" | null>(null);
 
+  const [customProviders, setCustomProviders] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    const updateProviders = () => {
+      if (window.Mewsic?.ui?.registry?.searchProviders) {
+        const list: Array<{ id: string; name: string }> = [];
+        window.Mewsic.ui.registry.searchProviders.forEach((config: any, id: string) => {
+          list.push({ id, name: config.name });
+        });
+        setCustomProviders(list);
+      }
+    };
+
+    window.addEventListener("plugin-ui-updated", updateProviders);
+    updateProviders();
+    return () => window.removeEventListener("plugin-ui-updated", updateProviders);
+  }, []);
+
+  const providers = [
+    { id: "jiosaavn", name: "JioSaavn" },
+    { id: "itunes", name: "iTunes" },
+    { id: "youtube", name: "YouTube" },
+    ...customProviders
+  ];
+
   useEffect(() => {
     let unlistenYt: (() => void) | undefined;
     let unlistenFm: (() => void) | undefined;
@@ -97,6 +122,14 @@ export default function HarbourView() {
     setLoading(true);
     setError(null);
     try {
+      const customProv = window.Mewsic?.ui?.registry?.searchProviders?.get(provider);
+      if (customProv) {
+        const res = await customProv.search(query);
+        setResults(res);
+        if (res.length === 0) setError("No results found.");
+        return;
+      }
+
       if (query.trim().startsWith("MWS-")) {
         let rawCode = query.trim().substring(4);
         
@@ -148,6 +181,20 @@ export default function HarbourView() {
 
     let unlisten: (() => void) | undefined;
     try {
+      const customProv = window.Mewsic?.ui?.registry?.searchProviders?.get(provider);
+      if (customProv && customProv.download) {
+        await customProv.download(track, musicDir, (progress: number) => {
+          updateNotification(notifId, { 
+            message: `Downloading... ${progress.toFixed(0)}%`, 
+            loading: true 
+          });
+        });
+        updateNotification(notifId, { message: "Download complete!", type: "success", loading: false });
+        setTimeout(() => removeNotification(notifId), 3000);
+        rescanDirectory();
+        return;
+      }
+
       unlisten = await listen("download-progress", (event: any) => {
         const { id, progress } = event.payload;
         if (id === notifId) {
@@ -241,7 +288,7 @@ export default function HarbourView() {
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="flex-1 sm:flex-none">
-              <ProviderSelector provider={provider} setProvider={setProvider} />
+              <ProviderSelector provider={provider} setProvider={setProvider} providers={providers} />
             </div>
             
             <button
@@ -368,16 +415,11 @@ export default function HarbourView() {
 interface ProviderSelectorProps {
   provider: string;
   setProvider: (p: string) => void;
+  providers: Array<{ id: string; name: string }>;
 }
 
-function ProviderSelector({ provider, setProvider }: ProviderSelectorProps) {
+function ProviderSelector({ provider, setProvider, providers }: ProviderSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
-  
-  const providers = [
-    { id: "jiosaavn", name: "JioSaavn" },
-    { id: "itunes", name: "iTunes" },
-    { id: "youtube", name: "YouTube" },
-  ];
 
   const currentProvider = providers.find(p => p.id === provider) || providers[1];
 

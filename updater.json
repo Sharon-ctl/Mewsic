@@ -1,23 +1,23 @@
 {
-  "version": "0.9.6",
-  "notes": "Mewsic v0.9.6: Release.",
+  "version": "0.9.7",
+  "notes": "Mewsic v0.9.7: Release.",
   "pub_date": "2026-06-01T16:30:00Z",
   "platforms": {
     "linux-x86_64": {
       "signature": "PLACEHOLDER_SIGNATURE",
-      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.6/Mewsic_0.9.6_amd64.AppImage"
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.7/Mewsic_0.9.7_amd64.AppImage"
     },
     "windows-x86_64": {
       "signature": "PLACEHOLDER_SIGNATURE",
-      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.6/Mewsic_0.9.6_x64_en-US.msi"
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.7/Mewsic_0.9.7_x64_en-US.msi"
     },
     "darwin-aarch64": {
       "signature": "PLACEHOLDER_SIGNATURE",
-      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.6/Mewsic_aarch64.app.tar.gz"
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.7/Mewsic_aarch64.app.tar.gz"
     },
     "darwin-x86_64": {
       "signature": "PLACEHOLDER_SIGNATURE",
-      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.6/Mewsic_x64.app.tar.gz"
+      "url": "https://github.com/xeoniii/Mewsic/releases/download/v0.9.7/Mewsic_x64.app.tar.gz"
     }
   }
 }

@@ -36,12 +36,17 @@ const CoverArt = memo(function CoverArt({
   const lowEndMode = useStore(s => s.lowEndMode);
   
   useEffect(() => {
+    if (track.coverArt && (track.coverArt.startsWith("http://") || track.coverArt.startsWith("https://") || track.coverArt.startsWith("data:"))) {
+      setCoverUrl(track.coverArt);
+      return;
+    }
+
     let cancelled = false;
     getCoverArt(track.filePath, size, lowEndMode).then((url) => {
       if (!cancelled) setCoverUrl(url);
     });
     return () => { cancelled = true; };
-  }, [track.filePath, size, lowEndMode]);
+  }, [track.filePath, track.coverArt, size, lowEndMode]);
 
   if (coverUrl && !imgError) {
     return (
@@ -171,9 +176,16 @@ export const MusicCard = memo(function MusicCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium truncate ${isActive ? "text-accent" : "text-text-primary"}`}>
-            {track.title}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className={`text-sm font-medium truncate ${isActive ? "text-accent" : "text-text-primary"}`}>
+              {track.title}
+            </p>
+            {(track.isVirtual || track.provider === "virtual") && (
+              <span className="text-[9px] font-semibold tracking-wider uppercase bg-accent/15 border border-accent/30 text-accent px-1.5 py-0.5 rounded flex-shrink-0">
+                Virtual
+              </span>
+            )}
+          </div>
           <p className="text-xs text-text-secondary truncate">
             {track.artist} · {track.album}
           </p>
@@ -220,14 +232,21 @@ export const MusicCard = memo(function MusicCard({
       </div>
 
       <div className="p-3 flex flex-col min-w-0 gap-0.5">
-        <p
-          className={`font-medium text-sm leading-tight truncate ${
-            isActive ? "text-accent" : "text-text-primary"
-          }`}
-          title={track.title}
-        >
-          {track.title}
-        </p>
+        <div className="flex items-center justify-between gap-1.5">
+          <p
+            className={`font-medium text-sm leading-tight truncate ${
+              isActive ? "text-accent" : "text-text-primary"
+            }`}
+            title={track.title}
+          >
+            {track.title}
+          </p>
+          {(track.isVirtual || track.provider === "virtual") && (
+            <span className="text-[9px] font-semibold tracking-wider uppercase bg-accent/15 border border-accent/30 text-accent px-1.2 py-0.5 rounded flex-shrink-0">
+              Virtual
+            </span>
+          )}
+        </div>
         <p className="text-xs text-text-secondary truncate" title={track.artist}>
           {track.artist}
         </p>

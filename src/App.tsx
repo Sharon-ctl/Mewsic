@@ -19,6 +19,7 @@ import { PlayerView } from "./components/Player/PlayerView";
 import HarbourView from "./components/Harbour/HarbourView";
 import { AudioView } from "./components/Audio/AudioView";
 import { SettingsView } from "./components/Settings/SettingsView";
+import { PluginsView } from "./components/Plugins/PluginsView";
 import { ToastContainer } from "./components/UI/Toast";
 import { ContextMenu } from "./components/UI/ContextMenu";
 import { AboutModal } from "./components/UI/AboutModal";
@@ -49,6 +50,7 @@ function ViewRouter() {
     case "player":   return <PlayerView />;
     case "harbour":  return <HarbourView />;
     case "audio":    return <AudioView />;
+    case "plugins":  return <PluginsView />;
     case "settings": return <SettingsView />;
     default:         return <HomeView />;
   }
@@ -149,13 +151,11 @@ export default function App() {
   }, [lowEndMode]);
 
   useEffect(() => {
-    // Only apply window decorations on startup.
-    // We add a small delay to ensure the OS has finished mapping hte window.
     const timer = setTimeout(() => {
       invoke("set_window_decorations", { decorations: !customTitlebar }).catch(() => {});
     }, 150);
     return () => clearTimeout(timer);
-  }, []); // Run once on mount
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${guiScale * 14}px`;
@@ -215,24 +215,18 @@ export default function App() {
       try {
         const update = await check();
         if (update?.available) {
-          console.log(`Update available: ${update.version}`);
-          const notifId = addNotification(
+          addNotification(
             `Mewsic v${update.version} is available.`,
             "info",
             0,
             false,
             "Update Available"
           );
-          
-          // Optionally, we could add a way to trigger the update from hte notification
-          // but for now let's just log it and maybe add a button in settings.
         }
       } catch (e) {
         console.error("Failed to check for updates:", e);
       }
     }
-    
-    // Check for updates after a short delay to not block startup
     const timer = setTimeout(checkForUpdates, 5000);
     return () => clearTimeout(timer);
   }, []);
@@ -248,6 +242,12 @@ export default function App() {
     if (shouldReturnToSettings === "true") {
       localStorage.removeItem("returnToSettings");
       useStore.getState().setActiveView("settings");
+    }
+
+    const shouldReturnToPlugins = localStorage.getItem("returnToPlugins");
+    if (shouldReturnToPlugins === "true") {
+      localStorage.removeItem("returnToPlugins");
+      useStore.getState().setActiveView("plugins");
     }
   }, []);
 
@@ -333,9 +333,14 @@ export default function App() {
   const handleDeleteConfirm = async () => {
     if (!deleteTrackRequest) return;
     try {
-      await deleteTrack(deleteTrackRequest.filePath);
+      const isVirtual = deleteTrackRequest.isVirtual || deleteTrackRequest.provider === "virtual";
+      if (!isVirtual) {
+        await deleteTrack(deleteTrackRequest.filePath);
+        addNotification(`Deleted "${deleteTrackRequest.title}" from disk`, "info");
+      } else {
+        addNotification(`Removed "${deleteTrackRequest.title}" from library`, "info");
+      }
       removeTrack(deleteTrackRequest.id);
-      addNotification(`Deleted "${deleteTrackRequest.title}" from disk`, "info");
     } catch (err: any) {
       addNotification(`Failed to delete: ${err.message}`, "error");
     } finally {
@@ -356,11 +361,7 @@ export default function App() {
       <TitleBar />
       {/* Main workspace */}
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
         <Sidebar />
-
-        {/* Content pane */}
-        {/* Content pane */}
         <main className="flex-1 min-w-0 overflow-hidden relative">
           <ViewRouter />
         </main>
@@ -394,11 +395,13 @@ export default function App() {
 
       {deleteTrackRequest && (
         <ConfirmationModal
-          title="Delete Track?"
-          message={`Are you sure you want to permanently delete "${deleteTrackRequest.title}"? This cannot be undone.`}
-          confirmLabel="Delete"
+          title={deleteTrackRequest.isVirtual || deleteTrackRequest.provider === "virtual" ? "Remove Track?" : "Delete Track?"}
+          message={deleteTrackRequest.isVirtual || deleteTrackRequest.provider === "virtual" 
+            ? `Are you sure you want to remove "${deleteTrackRequest.title}" from your library?`
+            : `Are you sure you want to permanently delete "${deleteTrackRequest.title}"? This cannot be undone.`}
+          confirmLabel={deleteTrackRequest.isVirtual || deleteTrackRequest.provider === "virtual" ? "Remove" : "Delete"}
           cancelLabel="Cancel"
-          variant="danger"
+          variant={deleteTrackRequest.isVirtual || deleteTrackRequest.provider === "virtual" ? "warning" : "danger"}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTrack(null)}
         />

@@ -5,9 +5,6 @@ import { open } from "@tauri-apps/plugin-shell";
 import { useStore } from "../../store";
 import { usePlugins, type PluginData } from "../../hooks/usePlugins";
 
-interface PluginManagerModalProps {
-  onClose: () => void;
-}
 
 const DiscordIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" className="text-white">
@@ -20,6 +17,7 @@ const MinecraftIcon = () => (
     <path fill="currentColor" d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2m2 4v4h4v2H8v6h2v-2h4v2h2v-6h-2v-2h4V6h-4v4h-4V6z" />
   </svg>
 );
+
 
 const BUILT_IN_PLUGINS = [
   {
@@ -55,9 +53,10 @@ const BUILT_IN_PLUGINS = [
       "Receives control instructions (play, next, previous, specific track) from game"
     ]
   },
+
 ];
 
-export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
+export function PluginsView() {
   const [activeTab, setActiveTab] = useState<"builtin" | "external">("builtin");
   const [selectedPluginId, setSelectedPluginId] = useState<string>("discord-rpc");
   const [selectedDetailTab, setSelectedDetailTab] = useState<"about" | "details" | "features">("about");
@@ -179,31 +178,21 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
   const selectedPlugin = allPlugins.find(p => p.id === selectedPluginId) || filteredPlugins[0];
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-4xl glass rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col h-[600px]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-7 py-5 flex items-center justify-between border-b border-border-subtle flex-shrink-0">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex flex-col h-full bg-surface-base">
+
+        <div className="px-8 py-6 border-b border-border-subtle flex-shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-accent flex items-center justify-center shadow-accent">
-              <Puzzle size={18} color="#000" />
+            <div className="w-10 h-10 rounded-2xl bg-accent flex items-center justify-center shadow-accent">
+              <Puzzle size={20} color="#000" />
             </div>
             <div>
-              <h2 className="text-lg font-display font-black text-text-primary tracking-tight">Plugin Manager</h2>
-              <p className="text-[10px] text-text-muted uppercase tracking-widest">Extend Mewsic's functionality</p>
+              <h1 className="font-display font-bold text-2xl text-text-primary">Plugins</h1>
+              <p className="text-text-muted text-sm mt-1">
+                Extend Mewsic's functionality with built-in and external plugins
+              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-2xl hover:bg-surface-overlay text-text-muted hover:text-text-primary transition-all hover:scale-110 active:scale-90"
-          >
-            <X size={18} />
-          </button>
         </div>
 
         {/* Content Body: Split layout */}
@@ -449,7 +438,10 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
                           try {
                             await invoke("delete_plugin", { pluginId: selectedPlugin.id });
                             addNotification?.(`Plugin ${selectedPlugin.name} deleted`, "success");
-                            setTimeout(() => window.location.reload(), 1000);
+                            setTimeout(() => {
+                              localStorage.setItem("returnToPlugins", "true");
+                              window.location.reload();
+                            }, 1000);
                           } catch (e: any) {
                             addNotification?.(`Failed to delete plugin: ${e}`, "error");
                           }
@@ -586,7 +578,10 @@ export function PluginManagerModal({ onClose }: PluginManagerModalProps) {
               Plugins Directory
             </button>
             <button
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                localStorage.setItem("returnToPlugins", "true");
+                window.location.reload();
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-raised border border-border-subtle text-[10px] font-black text-text-muted hover:text-accent hover:border-accent transition-all uppercase tracking-widest cursor-pointer"
             >
               <RefreshCw size={11} />

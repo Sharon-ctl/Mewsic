@@ -1,15 +1,9 @@
-/**
- * utils/audioEngine.ts
- * -------------------
- * Global singleton for the audio engine and Web Audio API integration.
- */
 import { useStore } from "../store";
 
 let audioInstance: HTMLAudioElement;
 let audioCtx: AudioContext | null = null;
 let source: MediaElementAudioSourceNode | null = null;
 
-// Nodes
 let bassFilter: BiquadFilterNode | null = null;
 let reverbNode: ConvolverNode | null = null;
 let dryGain: GainNode | null = null;
@@ -17,12 +11,11 @@ let wetGain: GainNode | null = null;
 let boostGain: GainNode | null = null;
 let masterGain: GainNode | null = null;
 let eqFilters: BiquadFilterNode[] = [];
+
 const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
-// Pre-generated impulse response
 let impulseBuffer: AudioBuffer | null = null;
 
-// Internal state to sync with store
 let currentBassBoost = 0;
 let currentVolumeBoost = 1.0;
 let currentReverbEnabled = false;
@@ -47,7 +40,7 @@ try {
     appendAudio();
   }
 
-  // Instant Pause/Play optimization for DSP
+  // Smoothly ramp master gain on pause/play to avoid clicks
   audioInstance.addEventListener("pause", () => {
     if (audioCtx && masterGain) {
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
@@ -61,7 +54,6 @@ try {
       masterGain.gain.setTargetAtTime(currentVolume, audioCtx.currentTime, 0.02);
     }
   });
-
 } catch (err) {
   console.error("AudioEngine: Global initialization failed", err);
   audioInstance = {
@@ -78,14 +70,10 @@ try {
 
 export const audio = audioInstance;
 
-/**
- * Creates a simple synthetic impulse response for reverb.
- */
 function createImpulseResponse(context: BaseAudioContext, duration: number, decay: number) {
   const sampleRate = context.sampleRate;
   const length = sampleRate * duration;
   const impulse = context.createBuffer(2, length, sampleRate);
-  
   for (let channel = 0; channel < 2; channel++) {
     const channelData = impulse.getChannelData(channel);
     for (let i = 0; i < length; i++) {
@@ -105,34 +93,36 @@ export function initAudioContext() {
     const ContextClass = (window.AudioContext || (window as any).webkitAudioContext);
     if (!ContextClass) return;
     audioCtx = new ContextClass();
-    
+
     impulseBuffer = createImpulseResponse(audioCtx, 2.5, 2.5);
     source = audioCtx.createMediaElementSource(audio);
-    
+
     bassFilter = audioCtx.createBiquadFilter();
     bassFilter.type = "lowshelf";
     bassFilter.frequency.value = 200;
-    
+
     dryGain = audioCtx.createGain();
     wetGain = audioCtx.createGain();
     reverbNode = audioCtx.createConvolver();
     reverbNode.buffer = impulseBuffer;
-    
+
     boostGain = audioCtx.createGain();
     masterGain = audioCtx.createGain();
 
-    // DynamicsCompressorNode removed: highly susceptible to NaN cascades 
-    // on Linux when Bluetooth/sink sample rates change abruptly.
-    // Create 10 EQ bands safely clamped below Nyquist to prevent crashes 
-    // on low-sample-rate headsets (e.g. HSP/HFP profile at 8kHz).
-    const nyquist = audioCtx!.sampleRate / 2;
-    eqFilters = EQ_FREQUENCIES.map(freq => {
+    // Frequencies are clamped below Nyquist to avoid crashes on low-rate headsets (e.g. HSP/HFP at 8kHz)
+    eqFilters = EQ_FREQUENCIES.map(() => {
       const filter = audioCtx!.createBiquadFilter();
       filter.type = "peaking";
-      filter.frequency.value = freq;
-      filter.Q.value = 1.4; // Standard Q for 10-band EQ
+      filter.frequency.value = 0;
+      filter.Q.value = 1.4;
       filter.gain.value = 0;
       return filter;
+    });
+
+    // Apply clamped frequencies after creation
+    const nyquist = audioCtx.sampleRate / 2;
+    EQ_FREQUENCIES.forEach((freq, i) => {
+      eqFilters[i].frequency.value = Math.min(freq, nyquist * 0.9);
     });
 
     source.connect(eqFilters[0]);
@@ -148,8 +138,8 @@ export function initAudioContext() {
     wetGain.connect(boostGain);
     boostGain.connect(masterGain);
     masterGain.connect(audioCtx.destination);
-    
-    // Auto-resume on suspend/interrupt (e.g., Bluetooth device switch)
+
+    // Resume automatically after device switches (e.g. Bluetooth reconnect)
     audioCtx.addEventListener("statechange", () => {
       if (audioCtx?.state === "suspended" || audioCtx?.state === "interrupted") {
         audioCtx.resume().catch(() => {});
@@ -167,10 +157,10 @@ function syncEngineState() {
   if (!audioCtx || !source) return;
   const now = audioCtx.currentTime;
 
-  // Unified Engine: High-fidelity parameter updates
-  if (audio) audio.volume = 1.0; 
-  
-  // Use cancelScheduledValues to clear any previous ramps, then smooth ramp to new value
+  // When the Web Audio graph is active, the element's volume is locked at 1
+  // and we drive levels through the gain nodes instead
+  if (audio) audio.volume = 1.0;
+
   if (bassFilter) {
     bassFilter.gain.cancelScheduledValues(now);
     bassFilter.gain.setTargetAtTime(currentBassBoost, now, 0.01);
@@ -184,36 +174,52 @@ function syncEngineState() {
     const targetVol = audio?.paused ? 0.0001 : currentVolume;
     masterGain.gain.setTargetAtTime(targetVol, now, 0.01);
   }
-  
   if (dryGain && wetGain) {
     dryGain.gain.cancelScheduledValues(now);
     dryGain.gain.setTargetAtTime(currentReverbEnabled ? 0.6 : 1.0, now, 0.01);
-    
     wetGain.gain.cancelScheduledValues(now);
     wetGain.gain.setTargetAtTime(currentReverbEnabled ? currentReverbStrength : 0.0, now, 0.01);
   }
 }
 
+// In low-end mode we bypass the convolver (expensive FFT) by silencing the wet path,
+// and we widen the EQ smoothing constant so individual band updates are less frequent.
 export function setLowEndMode(enabled: boolean) {
-  // Low-End mode now only affects UI/Access, engine stays unified for stability
   isLowEndMode = enabled;
+  if (!audioCtx || !wetGain || !dryGain) return;
+
+  const now = audioCtx.currentTime;
+  if (enabled) {
+    // Force wet gain to 0 regardless of reverb setting — convolver stays
+    // in the graph but processes silence, which is still cheaper than
+    // rebuilding the graph topology.
+    wetGain.gain.cancelScheduledValues(now);
+    wetGain.gain.setTargetAtTime(0, now, 0.01);
+    // Widen EQ time constant so rapid band drags don't spam the audio thread
+    eqFilters.forEach(f => f.gain.value = f.gain.value); // flush pending
+  } else {
+    // Restore reverb state
+    syncEngineState();
+  }
 }
 
 export function setEngineVolume(vol: number) {
   currentVolume = vol;
-  syncEngineState();
   if (audio) {
     if (audioCtx) {
-      audio.volume = 1.0; 
+      // Volume is controlled via masterGain when the Web Audio context is active
+      audio.volume = 1.0;
     } else {
       audio.volume = vol;
     }
   }
+  syncEngineState();
 }
 
 export function setReverbEnabled(enabled: boolean) {
   currentReverbEnabled = enabled;
-  syncEngineState();
+  // In low-end mode the wet path stays at 0 regardless — don't override that.
+  if (!isLowEndMode) syncEngineState();
 }
 
 export function setReverbStrength(strength: number) {
@@ -228,8 +234,10 @@ export function setPlaybackSpeed(speed: number) {
 export function setEqGain(index: number, gain: number) {
   if (eqFilters[index] && audioCtx) {
     const now = audioCtx.currentTime;
+    // Use a wider smoothing time in low-end mode to reduce audio thread pressure
+    const smoothing = isLowEndMode ? 0.05 : 0.01;
     eqFilters[index].gain.cancelScheduledValues(now);
-    eqFilters[index].gain.setTargetAtTime(gain, now, 0.01);
+    eqFilters[index].gain.setTargetAtTime(gain, now, smoothing);
   }
 }
 
@@ -243,10 +251,6 @@ export function setVolumeBoost(multiplier: number) {
   syncEngineState();
 }
 
-export function getAnalyser() { return null; }
-export function getNormalizedFrequencyData() { return []; }
-
-// Ensure AudioContext boots up inside a synchronous user gesture
 if (typeof document !== "undefined") {
   document.addEventListener("click", () => {
     if (!useStore.getState().safeAudioMode) {

@@ -95,12 +95,19 @@ export function PlayerBar() {
           )}
         </div>
 
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-text-primary truncate leading-tight">
-            {currentTrack ? truncate(currentTrack.title, 28) : "Nothing playing"}
-          </p>
-          <p className="text-xs text-text-muted truncate">
-            {currentTrack ? truncate(currentTrack.artist, 28) : "—"}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-sm font-medium text-text-primary truncate leading-tight">
+              {currentTrack ? truncate(currentTrack.title, 18) : "Nothing playing"}
+            </span>
+            {currentTrack && (currentTrack.provider === "virtual" || currentTrack.id.startsWith("web-stream:") || (currentTrack.filePath.startsWith("http") && !currentTrack.filePath.startsWith("http://127.0.0.1:1422/"))) && (
+              <span className="text-[9px] font-bold uppercase tracking-wider bg-accent/20 text-accent px-1.5 py-0.5 rounded border border-accent/30 flex-shrink-0">
+                Virtual
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-text-muted truncate mt-0.5">
+            {currentTrack ? truncate(currentTrack.artist, 24) : "—"}
           </p>
         </div>
       </div>

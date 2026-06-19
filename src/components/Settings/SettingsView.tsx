@@ -15,7 +15,7 @@ import { ACCENT_PRESETS } from "../../utils/helpers";
 import { useSmoothScroll } from "../../hooks/useSmoothScroll";
 import { ConfirmationModal } from "../UI/ConfirmationModal";
 import { UpdateModal } from "../UI/UpdateModal";
-import { PluginManagerModal } from "../UI/PluginManagerModal";
+
 import { ThemedSlider } from "../UI/ThemedSlider";
 import { ColorPickerModal } from "./ColorPickerModal";
 import type { ShortcutMap, Shortcut } from "../../types";
@@ -131,7 +131,7 @@ export function SettingsView() {
     refreshPlaylists
   } = useLibrary();
 
-  const [showPluginManager, setShowPluginManager] = useState(false);
+
   const [scanning, setScanning] = useState(false);
   const [refreshingPlaylists, setRefreshingPlaylists] = useState(false);
   const [showPlugins, setShowPlugins] = useState(false);
@@ -612,52 +612,7 @@ export function SettingsView() {
 
         {/* Row 3: Integrations & Library Info */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-          <Section icon={<Share2 size={16} />} title="Integrations">
-            <div className="flex flex-col gap-3 h-full">
-              {/* Plugin Manager button */}
-              <div
-                className="flex items-center justify-between p-3.5 rounded-2xl bg-surface-overlay border border-border-subtle group hover:border-accent/40 transition-all cursor-pointer"
-                onClick={() => setShowPluginManager(true)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-all">
-                    <Puzzle size={17} className="text-accent" />
-                  </div>
-                  <div>
-                    <p className="text-[13px] font-bold text-text-primary leading-none">Plugin Manager</p>
-                    <p className="text-[10px] text-text-muted mt-0.5">
-                      {[discordEnabled, minecraftIntegrationEnabled].filter(Boolean).length} of 2 built-in active
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-black text-accent uppercase tracking-widest opacity-60 group-hover:opacity-100 transition-all pr-1">
-                  Manage →
-                </span>
-              </div>
 
-              {/* Individual plugin status rows */}
-              <div className="flex flex-col gap-1.5">
-                {[
-                  { id: "discord-rpc", label: "Discord Rich Presence", enabled: discordEnabled, color: "#5865F2" },
-                  { id: "minecraft-bridge", label: "Minecraft Bridge", enabled: minecraftIntegrationEnabled, color: "#2b714b" },
-                ].map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between px-3 py-2 rounded-xl bg-surface-overlay border border-border-subtle cursor-pointer hover:border-accent/20 transition-all"
-                    onClick={() => setShowPluginManager(true)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: p.enabled ? p.color : "rgba(255,255,255,0.12)" }} />
-                      <span className="text-[11px] font-medium text-text-primary">{p.label}</span>
-                    </div>
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${p.enabled ? "text-green-400" : "text-text-muted opacity-40"}`}>
-                      {p.enabled ? "Active" : "Off"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Section>
 
           <Section icon={<Info size={16} />} title="Library Info">
             <div className="grid grid-cols-2 gap-4">
@@ -697,9 +652,7 @@ export function SettingsView() {
         <UpdateModal onClose={() => setShowUpdateModal(false)} />
       )}
 
-      {showPluginManager && (
-        <PluginManagerModal onClose={() => setShowPluginManager(false)} />
-      )}
+
       {showColorPicker && (
         <ColorPickerModal onClose={() => setShowColorPicker(false)} />
       )}

@@ -1336,6 +1336,139 @@ async fn download_track(
 }
 
 #[tauri::command]
+async fn get_stream_url(app_handle: tauri::AppHandle, url: String) -> Result<String, String> {
+    use std::process::Command;
+    
+    if url.ends_with(".mp3") || url.ends_with(".wav") || url.ends_with(".ogg") || url.ends_with(".flac") || url.ends_with(".m4a") {
+        return Ok(url);
+    }
+
+    let yt_dlp_path = get_yt_dlp_path(&app_handle).await;
+    
+    let mut cmd = if yt_dlp_path.exists() {
+        Command::new(&yt_dlp_path)
+    } else {
+        Command::new("yt-dlp")
+    };
+    
+    cmd.args([
+        "-g",
+        "-f", "bestaudio/best",
+        "--no-check-certificates",
+        "--geo-bypass",
+        "--extractor-args", "youtube:player-client=ios,android,web",
+        &url
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd.output().map_err(|e| format!("Failed to run yt-dlp: {}", e))?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("yt-dlp error: {}", err));
+    }
+
+    let stream_url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if stream_url.is_empty() {
+        return Err("No stream URL returned".to_string());
+    }
+    
+    Ok(stream_url)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct ResolvedStream {
+    url: String,
+    title: String,
+    artist: String,
+    duration: f64,
+    cover_art: String,
+}
+
+#[tauri::command]
+async fn resolve_stream_metadata(app_handle: tauri::AppHandle, url: String) -> Result<ResolvedStream, String> {
+    use std::process::Command;
+    
+    // Check if it's already a direct audio file stream
+    if url.ends_with(".mp3") || url.ends_with(".wav") || url.ends_with(".ogg") || url.ends_with(".flac") || url.ends_with(".m4a") {
+        let filename = Path::new(&url)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Web Stream");
+        let title = filename.split('.').next().unwrap_or("Web Stream").to_string();
+        
+        return Ok(ResolvedStream {
+            url: url.clone(),
+            title,
+            artist: "Web Stream".to_string(),
+            duration: 0.0,
+            cover_art: "".to_string(),
+        });
+    }
+
+    let yt_dlp_path = get_yt_dlp_path(&app_handle).await;
+    
+    let mut cmd = if yt_dlp_path.exists() {
+        Command::new(&yt_dlp_path)
+    } else {
+        Command::new("yt-dlp")
+    };
+    
+    cmd.args([
+        "--dump-json",
+        "--no-playlist",
+        "-f", "bestaudio/best",
+        "--no-check-certificates",
+        "--geo-bypass",
+        "--extractor-args", "youtube:player-client=ios,android,web",
+        &url
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd.output().map_err(|e| format!("Failed to run yt-dlp: {}", e))?;
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("yt-dlp error: {}", err));
+    }
+
+    let json_str = String::from_utf8_lossy(&output.stdout);
+    let parsed: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("Failed to parse metadata JSON: {}", e))?;
+
+    let stream_url = parsed["url"].as_str().unwrap_or_default().to_string();
+    if stream_url.is_empty() {
+        return Err("No streaming URL found in metadata".to_string());
+    }
+
+    let title = parsed["title"].as_str().unwrap_or("Unknown Title").to_string();
+    let artist = parsed["uploader"].as_str().unwrap_or("Unknown Artist").to_string();
+    let duration = parsed["duration"].as_f64().unwrap_or(0.0);
+    
+    let cover_art = parsed["thumbnail"].as_str()
+        .or_else(|| parsed["thumbnails"].as_array().and_then(|arr| arr.last()).and_then(|t| t["url"].as_str()))
+        .unwrap_or_default()
+        .to_string();
+
+    Ok(ResolvedStream {
+        url: stream_url,
+        title,
+        artist,
+        duration,
+        cover_art,
+    })
+}
+
+
+#[tauri::command]
 async fn pick_directory(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
@@ -1636,6 +1769,144 @@ fn handle_request(request: tiny_http::Request) {
     };
 
     let path_query = url.path();
+
+    if path_query == "/proxy" {
+        if let Some((_, target_url)) = url.query_pairs().find(|(k, _)| k == "url") {
+            let target_url = target_url.to_string();
+            
+            let mut range_header = None;
+            for header in request.headers() {
+                if header.field.as_str().to_ascii_lowercase() == "range" {
+                    range_header = Some(header.value.to_string());
+                }
+            }
+
+            let (tx, rx) = std::sync::mpsc::channel::<Result<Vec<u8>, String>>();
+            let (headers_tx, headers_rx) = std::sync::mpsc::channel::<(u16, String, Option<u64>, Option<String>)>();
+
+            std::thread::spawn(move || {
+                tauri::async_runtime::block_on(async {
+                    use futures_util::StreamExt;
+                    let client = reqwest::Client::new();
+                    let mut req = client.get(&target_url)
+                        .header(reqwest::header::USER_AGENT, "Mozilla/5.0");
+                    if let Some(range) = range_header {
+                        req = req.header("Range", range);
+                    }
+                    
+                    match req.send().await {
+                        Ok(resp) => {
+                            let status = resp.status().as_u16();
+                            let content_type = resp.headers()
+                                .get("content-type")
+                                .and_then(|v| v.to_str().ok())
+                                .unwrap_or("audio/mpeg")
+                                .to_string();
+                            let content_length = resp.headers()
+                                .get("content-length")
+                                .and_then(|v| v.to_str().ok())
+                                .and_then(|v| v.parse::<u64>().ok());
+                            let content_range = resp.headers()
+                                .get("content-range")
+                                .and_then(|v| v.to_str().ok())
+                                .map(|v| v.to_string());
+
+                            let _ = headers_tx.send((status, content_type, content_length, content_range));
+
+                            let mut stream = resp.bytes_stream();
+                            while let Some(chunk_result) = stream.next().await {
+                                match chunk_result {
+                                    Ok(chunk) => {
+                                        if tx.send(Ok(chunk.to_vec())).is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        let _ = tx.send(Err(e.to_string()));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let _ = headers_tx.send((500, "text/plain".to_string(), None, None));
+                            let _ = tx.send(Err(e.to_string()));
+                        }
+                    }
+                });
+            });
+
+            if let Ok((status, content_type, content_length, content_range)) = headers_rx.recv() {
+                struct ChannelReader {
+                    receiver: std::sync::mpsc::Receiver<Result<Vec<u8>, String>>,
+                    current_chunk: Option<Vec<u8>>,
+                    offset: usize,
+                }
+
+                impl std::io::Read for ChannelReader {
+                    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                        if self.current_chunk.is_none() {
+                            match self.receiver.recv() {
+                                Ok(Ok(chunk)) => {
+                                    self.current_chunk = Some(chunk);
+                                    self.offset = 0;
+                                }
+                                Ok(Err(e)) => {
+                                    return Err(std::io::Error::new(std::io::ErrorKind::Other, e));
+                                }
+                                Err(_) => {
+                                    return Ok(0);
+                                }
+                            }
+                        }
+
+                        if let Some(chunk) = &self.current_chunk {
+                            let available = chunk.len() - self.offset;
+                            let to_write = std::cmp::min(buf.len(), available);
+                            buf[..to_write].copy_from_slice(&chunk[self.offset..self.offset + to_write]);
+                            self.offset += to_write;
+                            if self.offset >= chunk.len() {
+                                self.current_chunk = None;
+                            }
+                            Ok(to_write)
+                        } else {
+                            Ok(0)
+                        }
+                    }
+                }
+
+                let reader = ChannelReader {
+                    receiver: rx,
+                    current_chunk: None,
+                    offset: 0,
+                };
+
+                let mut response = Response::new(
+                    tiny_http::StatusCode(status),
+                    vec![
+                        Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes()).unwrap(),
+                        Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
+                        Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"*"[..]).unwrap(),
+                        Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, OPTIONS"[..]).unwrap(),
+                        Header::from_bytes(&b"Accept-Ranges"[..], &b"bytes"[..]).unwrap(),
+                    ],
+                    reader,
+                    content_length.map(|l| l as usize),
+                    None,
+                );
+
+                if let Some(cr) = content_range {
+                    response.add_header(Header::from_bytes(&b"Content-Range"[..], cr.as_bytes()).unwrap());
+                }
+
+                let _ = request.respond(response);
+                return;
+            }
+        }
+        let _ = request.respond(Response::from_string("Proxy Failed").with_status_code(500));
+        return;
+    }
+
     let query = url.query().unwrap_or("");
     let is_thumb = query.contains("thumb=1");
     let requested_size = url.query_pairs()
@@ -2135,6 +2406,8 @@ fn main() {
             delete_plugin,
             show_in_folder,
             is_discord_connected,
+            get_stream_url,
+            resolve_stream_metadata,
         ])
         .on_window_event(|window, event| {
             match event {

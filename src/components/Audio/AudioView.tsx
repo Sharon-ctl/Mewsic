@@ -111,26 +111,6 @@ export function AudioView() {
     }
   }, [renamePresetId, audioPresets]);
 
-  if (lowEndMode && !isDevMode) {
-    return (
-      <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page">
-        <div className="h-full flex flex-col items-center justify-center space-y-6 animate-fade-in p-8">
-          <div className="w-24 h-24 rounded-[2rem] bg-amber-500/5 flex items-center justify-center text-amber-500/20 border border-amber-500/10 shadow-[0_0_50px_rgba(245,158,11,0.05)]">
-            <AlertTriangle size={48} className="animate-pulse" />
-          </div>
-          <div className="text-center space-y-3">
-            <h2 className="text-3xl font-black tracking-tight text-text-primary">Engine Locked</h2>
-            <p className="text-sm text-text-muted max-w-sm mx-auto leading-relaxed font-medium">
-              Audio Engine customization is currently unavailable because <span className="text-amber-500 font-bold">Low-End Mode</span> is enabled in your settings.
-              <br /><br />
-              To maintain system stability and prevent audio stuttering on your device, DSP effects like Reverb and Bass Boost are restricted.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page">
       {/* Header */}
@@ -156,7 +136,15 @@ export function AudioView() {
       <div ref={containerRef} className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
 
-          {/* Presets Section */}
+          {lowEndMode && (
+            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-center gap-4">
+              <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
+              <p className="text-xs text-amber-500/80 font-medium leading-relaxed">
+                <span className="font-bold">Low-End Mode is on.</span> Expensive effects like reverb may cause audio glitches on weak hardware. All controls are still available.
+              </p>
+            </div>
+          )}
+
           <section className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">

@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Home, Library, Settings, Music2, Plus,
-  ListMusic, ChevronRight, Loader2, Mic2, Globe, Download, Activity
+  ListMusic, ChevronRight, Loader2, Mic2, Globe, Download, Activity, Puzzle
 } from "lucide-react";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
@@ -145,6 +145,13 @@ export function Sidebar() {
           view="harbour"
           active={activeView === "harbour"}
           onClick={() => setActiveView("harbour")}
+        />
+        <NavItem
+          icon={<Puzzle size={15} />}
+          label="Plugins"
+          view="plugins"
+          active={activeView === "plugins"}
+          onClick={() => setActiveView("plugins")}
         />
         <NavItem
           icon={<Settings size={15} />}

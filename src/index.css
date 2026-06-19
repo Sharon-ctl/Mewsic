@@ -5,12 +5,30 @@
   display: none !important;
 }
 
-/* Low-End Mode Performance Overrides */
+/* Low-End Mode: kill GPU-heavy compositing while keeping functional snappiness */
 :root[data-lowend="true"] * {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   animation-duration: 0s !important;
-  transition-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+
+/* Allow instant interactive transitions — removing these would make buttons feel broken */
+:root[data-lowend="true"] *:not(.glass):not(.glass-heavy) {
+  transition-duration: 80ms !important;
+}
+
+/* Glassmorphism is the biggest perf sink — flatten to solid equivalent, preserving depth */
+:root[data-lowend="true"] .glass {
+  background: var(--surface-raised) !important;
+  box-shadow: 0 1px 0 var(--border-subtle) !important;
+  transition: none !important;
+}
+
+:root[data-lowend="true"] .glass-heavy {
+  background: var(--surface-base) !important;
+  box-shadow: none !important;
+  transition: none !important;
 }
 
 @tailwind base;

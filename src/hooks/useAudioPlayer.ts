@@ -1,26 +1,29 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
-// Throttle interval for time updates. Now that the app is optimized with useShallow, 
-// we can safely lower this to 50ms (20fps) for a much smoother progress bar without lag.
 const TIME_UPDATE_INTERVAL = 50;
-// Debounce for Discord RPC updates to prevent IPC clogging on rapid toggles/changes
 const RPC_DEBOUNCE_MS = 300;
 
 import { useStore } from "../store";
 import { useShallow } from "zustand/react/shallow";
-import { readAudioFile, updateDiscordRpc, clearDiscordRpc, fetchTrackMetadata } from "../utils/tauriApi";
+import { readAudioFile, updateDiscordRpc, clearDiscordRpc, fetchTrackMetadata, resolveStreamMetadata } from "../utils/tauriApi";
 
-import { 
-  audio, 
-  initAudioContext, 
-  setReverbEnabled, 
-  setPlaybackSpeed, 
-  setBassBoost, 
+function isDirectMediaUrl(url: string) {
+  const cleanUrl = url.split("?")[0].split("#")[0];
+  const ext = cleanUrl.split(".").pop()?.toLowerCase();
+  return ["mp3", "wav", "ogg", "flac", "m4a", "aac", "mp4"].includes(ext || "");
+}
+
+import {
+  audio,
+  initAudioContext,
+  setReverbEnabled,
+  setPlaybackSpeed,
+  setBassBoost,
   setVolumeBoost,
   setEngineVolume,
   setReverbStrength,
   setLowEndMode,
-  setEqGain
+  setEqGain,
 } from "../utils/audioEngine";
 
 export function useAudioPlayer() {
@@ -43,7 +46,7 @@ export function useAudioPlayer() {
     volumeBoost,
     eqGains,
     lowEndMode,
-  } = useStore(useShallow((s) => ({
+  } = useStore(useShallow(s => ({
     currentTrack: s.currentTrack,
     isPlaying: s.isPlaying,
     volume: s.volume,
@@ -79,39 +82,85 @@ export function useAudioPlayer() {
     }
 
     const loadId = ++loadAbortRef.current;
-    
-    try {
-      const fileUrl = readAudioFile(currentTrack.filePath);
-      
-      // Stop current playback before switching
-      audio.pause();
-      audio.crossOrigin = "anonymous";
-      audio.src = fileUrl;
-      audio.currentTime = 0;
 
-      if (isPlaying) {
-        audio.play().catch((err: any) => {
-          console.warn("Autoplay failed or was interrupted:", err);
-        });
+    const loadAndPlay = async () => {
+      try {
+        let fileUrl = readAudioFile(currentTrack.filePath);
+
+        if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+          if (!fileUrl.startsWith("http://127.0.0.1:1422/")) {
+            if (!isDirectMediaUrl(fileUrl)) {
+              let resolved = null;
+
+              if (window.Mewsic?.player?._resolvers) {
+                for (const resolver of window.Mewsic.player._resolvers) {
+                  try {
+                    const result = await resolver(fileUrl);
+                    if (result?.url) {
+                      resolved = {
+                        url: result.url,
+                        title: result.title || currentTrack.title,
+                        artist: result.artist || currentTrack.artist,
+                        duration: result.duration || currentTrack.duration,
+                        coverArt: result.coverArt || currentTrack.coverArt || "",
+                      };
+                      break;
+                    }
+                  } catch (e) {
+                    console.error("Plugin resolver failed:", e);
+                  }
+                }
+              }
+
+              if (!resolved) {
+                addNotification("Resolving audio stream...", "info", 2000);
+                resolved = await resolveStreamMetadata(fileUrl);
+              }
+
+              fileUrl = resolved.url;
+              useStore.getState().updateTrack({
+                ...currentTrack,
+                title: resolved.title,
+                artist: resolved.artist,
+                duration: resolved.duration,
+                coverArt: resolved.coverArt,
+              });
+            }
+            fileUrl = `http://127.0.0.1:1422/proxy?url=${encodeURIComponent(fileUrl)}`;
+          }
+        }
+
+        if (loadId !== loadAbortRef.current) return;
+
+        audio.pause();
+        audio.crossOrigin = "anonymous";
+        audio.src = fileUrl;
+        audio.currentTime = 0;
+
+        if (isPlaying) {
+          audio.play().catch((err: any) => {
+            console.warn("Autoplay failed:", err);
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load track:", err);
+        addNotification(`Failed to load stream: ${err}`, "error");
       }
-    } catch (err) {
-      console.error("Failed to load track:", err);
-    }
+    };
+
+    loadAndPlay();
   }, [currentTrack?.id]);
 
-  // Handle play/pause state independently of track changes
   useEffect(() => {
     if (!currentTrack) return;
     if (isPlaying) {
-      if (audio.paused) {
-        audio.play().catch(() => {});
-      }
+      if (audio.paused) audio.play().catch(() => {});
     } else {
       audio.pause();
     }
   }, [isPlaying]);
 
-  const seekRequest = useStore((s) => s.seekRequest);
+  const seekRequest = useStore(s => s.seekRequest);
   useEffect(() => {
     if (seekRequest !== null) {
       lastSeekTime.current = performance.now();
@@ -122,31 +171,24 @@ export function useAudioPlayer() {
     }
   }, [seekRequest, setCurrentTime]);
 
-  // Sync Volume
-  useEffect(() => {
-    setEngineVolume(volume);
-  }, [volume]);
+  useEffect(() => { setEngineVolume(volume); }, [volume]);
 
-  // Sync Audio Engine Effects
   useEffect(() => {
     setReverbEnabled(reverbEnabled);
     setReverbStrength(reverbStrength);
     setPlaybackSpeed(playbackSpeed);
     setBassBoost(bassBoost);
     setVolumeBoost(volumeBoost);
-  }, [reverbEnabled, playbackSpeed, bassBoost, volumeBoost, currentTrack?.id]);
+  }, [reverbEnabled, reverbStrength, playbackSpeed, bassBoost, volumeBoost, currentTrack?.id]);
 
-  useEffect(() => {
-    setLowEndMode(lowEndMode);
-  }, [lowEndMode]);
+  useEffect(() => { setLowEndMode(lowEndMode); }, [lowEndMode]);
 
-  // Sync Equalizer
   useEffect(() => {
     if (Array.isArray(eqGains)) {
       eqGains.forEach((gain, i) => setEqGain(i, gain));
     }
   }, [eqGains]);
-  
+
   const currentCoverUrlRef = useRef<string | undefined>(undefined);
   const lastTrackIdRef = useRef<string | null>(null);
   const rpcTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,7 +198,7 @@ export function useAudioPlayer() {
 
     const updatePresence = async () => {
       const state = useStore.getState();
-      
+
       if (!currentTrack) {
         lastTrackIdRef.current = null;
         currentCoverUrlRef.current = undefined;
@@ -170,25 +212,19 @@ export function useAudioPlayer() {
         if (pl) playlistName = pl.name;
       }
 
-      // Handle metadata & notifications only on track change
       if (lastTrackIdRef.current !== currentTrack.id) {
-        const isNewTrack = lastTrackIdRef.current !== currentTrack.id;
         lastTrackIdRef.current = currentTrack.id;
 
-        // Cover handling
         if (state.discordCoverCache[currentTrack.id]) {
-          let cached = state.discordCoverCache[currentTrack.id];
-          if (cached === "none") cached = undefined as any;
-          currentCoverUrlRef.current = cached;
+          const cached = state.discordCoverCache[currentTrack.id];
+          currentCoverUrlRef.current = cached === "none" ? undefined : cached;
         } else {
           currentCoverUrlRef.current = undefined;
-          // Don't await this to avoid blocking the RPC update
           fetchTrackMetadata(`${currentTrack.title} ${currentTrack.artist}`).then(metadata => {
             if (metadata.coverArt) {
               useStore.getState().setDiscordCoverCache(currentTrack.id, metadata.coverArt);
               if (useStore.getState().currentTrack?.id === currentTrack.id) {
                 currentCoverUrlRef.current = metadata.coverArt;
-                // Re-trigger RPC update with cover
                 updateDiscordRpc(
                   currentTrack.title,
                   currentTrack.artist,
@@ -205,8 +241,7 @@ export function useAudioPlayer() {
           }).catch(() => {});
         }
 
-        // Send System Notification
-        if (state.systemNotifications && isNewTrack) {
+        if (state.systemNotifications) {
           try {
             const { isPermissionGranted, requestPermission, sendNotification } = await import("@tauri-apps/plugin-notification");
             let hasPermission = await isPermissionGranted();
@@ -227,7 +262,6 @@ export function useAudioPlayer() {
         }
       }
 
-      // Discord RPC Update
       if (state.discordEnabled) {
         updateDiscordRpc(
           currentTrack.title,
@@ -244,14 +278,12 @@ export function useAudioPlayer() {
     };
 
     rpcTimeoutRef.current = setTimeout(updatePresence, RPC_DEBOUNCE_MS);
-
-    return () => {
-      if (rpcTimeoutRef.current) clearTimeout(rpcTimeoutRef.current);
-    };
+    return () => { if (rpcTimeoutRef.current) clearTimeout(rpcTimeoutRef.current); };
   }, [currentTrack?.id, isPlaying, discordEnabled, systemNotifications]);
 
   useEffect(() => {
     let lastTimeWrite = 0;
+
     const onTimeUpdate = () => {
       if (isSeeking.current || performance.now() - lastSeekTime.current < 500) return;
       const now = performance.now();
@@ -260,66 +292,58 @@ export function useAudioPlayer() {
         setCurrentTime(audio.currentTime);
       }
     };
+
     const onDurationChange = () => {
       let d = audio.duration || 0;
-      if (!isFinite(d)) {
-        d = useStore.getState().currentTrack?.duration || 0;
-      }
+      if (!isFinite(d)) d = useStore.getState().currentTrack?.duration || 0;
       setDuration(d);
     };
+
     const onEnded = () => {
       if (repeatMode === "one") {
         audio.currentTime = 0;
         audio.play().catch(() => {});
       } else {
-        // Add a small delay to automatic switching to ensure the audio engine
-        // has finished the current track before we swap the source.
-        setTimeout(() => {
-          playNext();
-        }, 100);
+        setTimeout(() => playNext(), 100);
       }
     };
-    const onPlay  = () => {
-      if (!useStore.getState().safeAudioMode) {
-        initAudioContext();
-      }
+
+    const onPlay = () => {
+      if (!useStore.getState().safeAudioMode) initAudioContext();
       setIsPlaying(true);
     };
     const onPause = () => setIsPlaying(false);
-    const onError = (e: Event) => {
-      console.error("Audio error:", e);
-    };
+    const onError = (e: Event) => console.error("Audio error:", e);
     const onSeeking = () => { isSeeking.current = true; };
     const onSeeked = () => { isSeeking.current = false; };
 
-    audio.addEventListener("timeupdate",      onTimeUpdate);
-    audio.addEventListener("durationchange",  onDurationChange);
-    audio.addEventListener("ended",           onEnded);
-    audio.addEventListener("play",            onPlay);
-    audio.addEventListener("pause",           onPause);
-    audio.addEventListener("error",           onError);
-    audio.addEventListener("seeking",         onSeeking);
-    audio.addEventListener("seeked",          onSeeked);
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("durationchange", onDurationChange);
+    audio.addEventListener("ended", onEnded);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("error", onError);
+    audio.addEventListener("seeking", onSeeking);
+    audio.addEventListener("seeked", onSeeked);
 
     return () => {
-      audio.removeEventListener("timeupdate",     onTimeUpdate);
+      audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("durationchange", onDurationChange);
-      audio.removeEventListener("ended",          onEnded);
-      audio.removeEventListener("play",           onPlay);
-      audio.removeEventListener("pause",          onPause);
-      audio.removeEventListener("error",          onError);
-      audio.removeEventListener("seeking",        onSeeking);
-      audio.removeEventListener("seeked",         onSeeked);
+      audio.removeEventListener("ended", onEnded);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("error", onError);
+      audio.removeEventListener("seeking", onSeeking);
+      audio.removeEventListener("seeked", onSeeked);
     };
   }, [repeatMode]);
 
-  const seek = useCallback((time: number) => {
+  const seek = (time: number) => {
     lastSeekTime.current = performance.now();
     isSeeking.current = true;
     audio.currentTime = time;
     setCurrentTime(time);
-    
-    // Update Discord RPC immediately on seek for responsiveness
+
     const state = useStore.getState();
     const track = state.currentTrack;
     if (track && state.discordEnabled) {
@@ -330,11 +354,9 @@ export function useAudioPlayer() {
       }
       updateDiscordRpc(track.title, track.artist, state.isPlaying, time, track.duration || audio.duration || 0, playlistName, currentCoverUrlRef.current).catch(() => {});
     }
-  }, []);
+  };
 
-  const togglePlay = useCallback(() => {
-    setIsPlaying(!isPlaying);
-  }, [isPlaying]);
+  const togglePlay = () => setIsPlaying(!isPlaying);
 
   return { seek, togglePlay, audioElement: audio };
 }
