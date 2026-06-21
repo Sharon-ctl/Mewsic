@@ -41,6 +41,13 @@ export function PlayerView() {
     setIsSyncMode(true);
   };
 
+  const shiftSync = (amount: number) => {
+    setSyncLines(lines => lines.map(l => ({
+      ...l,
+      time: l.time >= 0 ? Math.max(0, l.time + amount) : -1
+    })));
+  };
+
   const saveSync = async () => {
     if (!currentTrack) return;
     const lrcContent = syncLines.map(l => {
@@ -69,6 +76,50 @@ export function PlayerView() {
         <div className="flex items-center gap-2">
           {isSyncMode ? (
             <>
+              <div className="flex items-center gap-1 mr-2 border-r border-border-subtle pr-3">
+                <button
+                  onClick={() => shiftSync(-1.0)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary"
+                  title="Advance lyrics by 1.0s"
+                >
+                  -1.0s
+                </button>
+                <button
+                  onClick={() => shiftSync(-0.5)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary"
+                  title="Advance lyrics by 0.5s"
+                >
+                  -0.5s
+                </button>
+                <button
+                  onClick={() => shiftSync(-0.1)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary"
+                  title="Advance lyrics by 0.1s"
+                >
+                  -0.1s
+                </button>
+                <button
+                  onClick={() => shiftSync(0.1)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary"
+                  title="Delay lyrics by 0.1s"
+                >
+                  +0.1s
+                </button>
+                <button
+                  onClick={() => shiftSync(0.5)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary"
+                  title="Delay lyrics by 0.5s"
+                >
+                  +0.5s
+                </button>
+                <button
+                  onClick={() => shiftSync(1.0)}
+                  className="px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary"
+                  title="Delay lyrics by 1.0s"
+                >
+                  +1.0s
+                </button>
+              </div>
               <button
                 onClick={() => setIsSyncMode(false)}
                 className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors bg-surface-raised text-text-muted border border-border-subtle hover:text-text-primary flex items-center gap-1.5"

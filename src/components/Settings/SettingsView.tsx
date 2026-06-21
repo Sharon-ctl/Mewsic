@@ -672,6 +672,7 @@ function ShortcutRow({ label, action, shortcut, onSet }: {
     if (!isRecording) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       e.preventDefault();
       e.stopPropagation();
 

@@ -22,6 +22,8 @@ import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { useStore } from "../../store";
 import { useShallow } from "zustand/react/shallow";
 import { MusicCard, SortableMusicCard } from "../Dashboard/MusicCard";
+import { downloadTrack, importFiles } from "../../utils/tauriApi";
+import { listen } from "@tauri-apps/api/event";
 import { useLibrary } from "../../hooks/useLibrary";
 import { formatDuration, pluralize, shuffleArray } from "../../utils/helpers";
 import { AddToPlaylistModal } from "./AddToPlaylistModal";
@@ -43,6 +45,11 @@ export function PlaylistView() {
     playlistViewMode,
     setPlaylistViewMode,
     setSharePlaylist,
+    musicDir,
+    addNotification,
+    updateNotification,
+    removeNotification,
+    addTracks,
   } = useStore(
     useShallow((s) => ({
       activePlaylistId: s.activePlaylistId,
@@ -53,6 +60,12 @@ export function PlaylistView() {
       playlistViewMode: s.playlistViewMode,
       setPlaylistViewMode: s.setPlaylistViewMode,
       setSharePlaylist: s.setSharePlaylist,
+      musicDir: s.musicDir,
+      addNotification: s.addNotification,
+      updateNotification: s.updateNotification,
+      removeNotification: s.removeNotification,
+      addTracks: s.addTracks,
+      updateTrack: s.updateTrack,
     }))
   );
 
@@ -61,7 +74,8 @@ export function PlaylistView() {
     removePlaylistData, 
     removeTrackFromPlaylist, 
     updatePlaylistData, 
-    renamePlaylist 
+    renamePlaylist,
+    rehydratePlaylist
   } = useLibrary();
 
   const [showManageTracks, setShowManageTracks] = useState(false);
@@ -129,8 +143,9 @@ export function PlaylistView() {
   const playlistTracks = useMemo(() => {
     if (!playlist) return [];
     const trackMap = new Map(displayTracks.map((t) => [t.id, t]));
+    const playlistTrackMap = new Map((playlist.tracks || []).map((t) => [t.id, t]));
     return (playlist.trackIds || [])
-      .map((id) => trackMap.get(id))
+      .map((id) => trackMap.get(id) || playlistTrackMap.get(id))
       .filter(Boolean) as Track[];
   }, [playlist, displayTracks]);
 
@@ -211,6 +226,141 @@ export function PlaylistView() {
     }
   }, [playlist, removeTrackFromPlaylist]);
 
+  const isVirtualPlaylist = !playlist.filePath;
+  const currentCachePlaylistIdRef = useRef<string | null>(null);
+
+  // Background caching for virtual playlists
+  useEffect(() => {
+    if (!isVirtualPlaylist || !musicDir) return;
+    if (currentCachePlaylistIdRef.current === activePlaylistId) return;
+    
+    const uncachedTracks = playlistTracks.filter(t => t.filePath.startsWith("ytsearch:"));
+    if (uncachedTracks.length === 0) return;
+
+    currentCachePlaylistIdRef.current = activePlaylistId;
+    const cacheDir = `${musicDir}/.mewsic_cache`;
+
+    const cacheTracks = async () => {
+      const CONCURRENCY = 3;
+      let i = 0;
+      
+      const processNext = async (): Promise<void> => {
+        if (currentCachePlaylistIdRef.current !== activePlaylistId) return;
+        if (i >= uncachedTracks.length) return;
+        const track = uncachedTracks[i++];
+        try {
+          const cachedPath = await downloadTrack(
+            cacheDir, track.title, track.artist, track.album || playlist.name, track.coverArt || playlist.coverArt || "", `cache_${track.id}`, undefined
+          );
+          
+          if (currentCachePlaylistIdRef.current !== activePlaylistId) return;
+          useStore.getState().updateTrack({
+            ...track,
+            filePath: cachedPath,
+          });
+        } catch (e) {
+          console.error(`Failed to cache ${track.title}:`, e);
+        }
+        return processNext();
+      };
+
+      const workers = Array.from({ length: Math.min(CONCURRENCY, uncachedTracks.length) }, () => processNext());
+      await Promise.all(workers);
+    };
+
+    cacheTracks();
+  }, [isVirtualPlaylist, playlistTracks, musicDir, activePlaylistId]);
+
+  const handleSaveVirtual = async () => {
+    if (!musicDir) return;
+    const notifId = addNotification(`Saving ${playlistTracks.length} tracks to disk...`, "info", 0, true);
+    
+    let unlisten: any = null;
+    try {
+      unlisten = await listen("download-progress", (e: any) => {
+        const { id, progress } = e.payload;
+        if (id.startsWith("virt_dl_")) {
+          updateNotification(notifId, { message: `Downloading... ${progress.toFixed(0)}%`, loading: true });
+        }
+      });
+
+      const finalTracks: Track[] = [];
+      const succeededIds = new Set<string>();
+      
+      for (let i = 0; i < playlistTracks.length; i++) {
+        const t = playlistTracks[i];
+        updateNotification(notifId, { message: `Processing (${i+1}/${playlistTracks.length}): ${t.title}...`, loading: true });
+        
+        let finalPath = "";
+        try {
+          if (!t.filePath.startsWith("ytsearch:")) {
+            // Already cached! Just copy it from .mewsic_cache to musicDir
+            await importFiles([t.filePath], musicDir);
+            finalPath = `${musicDir}/${t.filePath.split(/[\\/]/).pop()}`;
+          } else {
+            // Not cached yet, download directly to musicDir
+            finalPath = await downloadTrack(
+              musicDir, t.title, t.artist, t.album || playlist.name, t.coverArt || playlist.coverArt || "", `virt_dl_${i}`, undefined
+            );
+          }
+          
+          if (finalPath) {
+            const realTrack: Track = {
+              ...t,
+              id: "mewsify_" + (t.sourceId || finalPath).replace(/[^a-z0-9]/gi, "_"),
+              filePath: finalPath,
+              fileName: finalPath.split(/[\\/]/).pop() || t.title,
+              isVirtual: false,
+              provider: "spotify",
+              dateAdded: Date.now(),
+            };
+            finalTracks.push(realTrack);
+            succeededIds.add(t.id);
+          }
+        } catch (e) {
+          console.error(`Failed to save ${t.title}:`, e);
+        }
+      }
+
+      if (finalTracks.length > 0) {
+        // We use addTracks to insert the real tracks into the library
+        useStore.getState().addTracks(finalTracks);
+        
+        // Clean up the old virtual tracks from the library if they succeeded
+        for (const t of playlistTracks) {
+          if (succeededIds.has(t.id)) {
+            useStore.getState().removeVirtualTrack(t.id);
+          }
+        }
+        
+        const cleanName = playlist.name.replace(" (Virtual)", "");
+        const newPl = {
+          ...playlist,
+          name: cleanName,
+          trackIds: playlistTracks.map(t => {
+            if (succeededIds.has(t.id)) {
+              const matchedReal = finalTracks.find(rt => rt.sourceId === t.sourceId || (rt.title === t.title && rt.artist === t.artist));
+              return matchedReal ? matchedReal.id : t.id;
+            }
+            return t.id;
+          }),
+        };
+        
+        // Remove the virtual suffix and save to disk
+        await rehydratePlaylist(newPl);
+        
+        updateNotification(notifId, { message: `Saved ${finalTracks.length} tracks to library!`, type: "success", loading: false });
+      } else {
+        updateNotification(notifId, { message: "Failed to save tracks.", type: "error", loading: false });
+      }
+    } catch (e: any) {
+      updateNotification(notifId, { message: `Error: ${e.message}`, type: "error", loading: false });
+    } finally {
+      if (unlisten) unlisten();
+      setTimeout(() => removeNotification(notifId), 5000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -260,14 +410,25 @@ export function PlaylistView() {
                 <Play size={14} fill="currentColor" />
                 Play
               </button>
-              <button
-                onClick={() => setShowManageTracks(true)}
-                className="btn-accent bg-accent-muted text-accent border-accent/20 px-6"
-                title="Add songs to this playlist"
-              >
-                <PlusCircle size={14} />
-                Add
-              </button>
+              {isVirtualPlaylist ? (
+                <button
+                  onClick={handleSaveVirtual}
+                  className="btn-accent bg-accent-muted text-accent border-accent/20 px-6"
+                  title="Download all tracks to your library"
+                >
+                  <Download size={14} />
+                  Save to Disk
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowManageTracks(true)}
+                  className="btn-accent bg-accent-muted text-accent border-accent/20 px-6"
+                  title="Add songs to this playlist"
+                >
+                  <PlusCircle size={14} />
+                  Add
+                </button>
+              )}
             </div>
 
             <div className="flex flex-1 justify-end min-w-max">

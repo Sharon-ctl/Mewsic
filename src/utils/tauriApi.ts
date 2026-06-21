@@ -2,7 +2,7 @@ import { invoke, convertFileSrc as tauriConvertFileSrc } from "@tauri-apps/api/c
 import type { Track, Playlist, AppPaths, ScanResult } from "../types";
 
 export function convertFileSrc(filePath: string): string {
-  if (filePath.startsWith("http://") || filePath.startsWith("https://") || filePath.startsWith("blob:")) {
+  if (filePath.startsWith("http://") || filePath.startsWith("https://") || filePath.startsWith("blob:") || filePath.startsWith("ytsearch:")) {
     return filePath;
   }
   let path = filePath.replace(/\\/g, "/");

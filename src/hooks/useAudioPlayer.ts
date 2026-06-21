@@ -87,7 +87,7 @@ export function useAudioPlayer() {
       try {
         let fileUrl = readAudioFile(currentTrack.filePath);
 
-        if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+        if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://") || fileUrl.startsWith("ytsearch:")) {
           if (!fileUrl.startsWith("http://127.0.0.1:1422/")) {
             if (!isDirectMediaUrl(fileUrl)) {
               let resolved = null;
@@ -113,18 +113,22 @@ export function useAudioPlayer() {
               }
 
               if (!resolved) {
-                addNotification("Resolving audio stream...", "info", 2000);
                 resolved = await resolveStreamMetadata(fileUrl);
               }
 
               fileUrl = resolved.url;
-              useStore.getState().updateTrack({
-                ...currentTrack,
-                title: resolved.title,
-                artist: resolved.artist,
-                duration: resolved.duration,
-                coverArt: resolved.coverArt,
-              });
+              
+              // Only update if duration or cover art is missing, don't overwrite title/artist!
+              const updates: any = {};
+              if (!currentTrack.duration && resolved.duration) updates.duration = resolved.duration;
+              if (!currentTrack.coverArt && resolved.coverArt) updates.coverArt = resolved.coverArt;
+              
+              if (Object.keys(updates).length > 0) {
+                useStore.getState().updateTrack({
+                  ...currentTrack,
+                  ...updates
+                });
+              }
             }
             fileUrl = `http://127.0.0.1:1422/proxy?url=${encodeURIComponent(fileUrl)}`;
           }

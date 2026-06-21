@@ -174,8 +174,17 @@ export function useLibrary() {
 
   const removePlaylistData = useCallback(async (pl: Playlist) => {
     try {
-      await deletePlaylist(pl.filePath);
+      if (pl.filePath) {
+        await deletePlaylist(pl.filePath);
+      }
       removePlaylist(pl.id);
+      
+      // Clean up virtual tracks if it was a virtual playlist
+      if (!pl.filePath) {
+        pl.trackIds.forEach(id => {
+          useStore.getState().removeVirtualTrack(id);
+        });
+      }
     } catch (err) {
       console.error("Delete playlist error:", err);
     }

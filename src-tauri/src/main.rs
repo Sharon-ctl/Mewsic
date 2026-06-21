@@ -2207,6 +2207,379 @@ fn clear_image_cache() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn start_oauth_server(port: u16) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let server = Server::http(format!("127.0.0.1:{}", port))
+            .map_err(|e| format!("Failed to bind server: {}", e))?;
+
+        let start = std::time::Instant::now();
+        
+        while start.elapsed().as_secs() < 180 {
+            if let Ok(Some(request)) = server.try_recv() {
+                let url = request.url().to_string();
+                
+                let response_html = r#"
+                    <html>
+                    <body style="background:#000;color:#1DB954;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
+                        <h2>Authorization successful! You can close this tab and return to Mewsic.</h2>
+                        <script>setTimeout(() => window.close(), 1000);</script>
+                    </body>
+                    </html>
+                "#;
+                
+                let response = Response::from_string(response_html)
+                    .with_header(Header::from_bytes(&b"Content-Type"[..], &b"text/html"[..]).unwrap());
+                
+                let _ = request.respond(response);
+
+                if let Some(query_idx) = url.find('?') {
+                    let query = &url[query_idx + 1..];
+                    for pair in query.split('&') {
+                        let mut kv = pair.split('=');
+                        if let (Some(k), Some(v)) = (kv.next(), kv.next()) {
+                            if k == "code" {
+                                return Ok(v.to_string());
+                            }
+                        }
+                    }
+                }
+                return Err("No code found in callback".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        
+        Err("Timeout waiting for authorization".into())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn fetch_spotify_playlist(url: String) -> Result<String, String> {
+    // Derive the embed URL from any playlist or album link
+    let embed_url = if url.starts_with("https://open.spotify.com/playlist/") {
+        let id = url
+            .trim_start_matches("https://open.spotify.com/playlist/")
+            .split('?').next().unwrap_or("").to_string();
+        if id.is_empty() {
+            return Err("Invalid Spotify playlist URL.".into());
+        }
+        format!("https://open.spotify.com/embed/playlist/{}", id)
+    } else if url.starts_with("https://open.spotify.com/album/") {
+        let id = url
+            .trim_start_matches("https://open.spotify.com/album/")
+            .split('?').next().unwrap_or("").to_string();
+        if id.is_empty() {
+            return Err("Invalid Spotify album URL.".into());
+        }
+        format!("https://open.spotify.com/embed/album/{}", id)
+    } else if url.starts_with("https://open.spotify.com/track/") {
+        let id = url
+            .trim_start_matches("https://open.spotify.com/track/")
+            .split('?').next().unwrap_or("").to_string();
+        if id.is_empty() {
+            return Err("Invalid Spotify track URL.".into());
+        }
+        format!("https://open.spotify.com/embed/track/{}", id)
+    } else {
+        return Err("Invalid Spotify URL. Must be a public playlist, album, or track link.".into());
+    };
+
+    println!("Mewsify fetching embed: {}", embed_url);
+
+    let mut cmd = std::process::Command::new("curl");
+    cmd.args(&[
+        "-s",
+        "-L",
+        "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "-H", "Accept-Language: en-US,en;q=0.5",
+        &embed_url,
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd.output().map_err(|e| format!("Failed to execute curl: {}", e))?;
+    let html = String::from_utf8(output.stdout).map_err(|e| e.to_string())?;
+    println!("Mewsify embed fetch length: {}", html.len());
+
+    // The embed page exposes all data in a __NEXT_DATA__ JSON script tag
+    let re = regex::Regex::new(r#"(?s)<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>"#).unwrap();
+    if let Some(caps) = re.captures(&html) {
+        if let Some(json_match) = caps.get(1) {
+            return Ok(json_match.as_str().to_string());
+        }
+    }
+
+    Err(format!(
+        "Could not find playlist metadata. Make sure the playlist is Public. (embed page length: {})",
+        html.len()
+    ))
+}
+
+#[derive(Clone, Serialize)]
+struct SpotifyImportProgress {
+    playlist_id: String,
+    track_index: usize,
+    track_total: usize,
+    track_title: String,
+    file_path: String, // empty if still in progress, filled when done
+    error: Option<String>,
+}
+
+#[tauri::command]
+async fn import_spotify_playlist(
+    app_handle: tauri::AppHandle,
+    url: String,
+    music_dir: String,
+    playlist_id: String,
+) -> Result<serde_json::Value, String> {
+    use std::process::{Command, Stdio};
+    use std::io::{BufRead, BufReader};
+
+    // ── Step 1: Fetch embed JSON ─────────────────────────────────────────────
+    let embed_url = if url.starts_with("https://open.spotify.com/playlist/") {
+        let id = url.trim_start_matches("https://open.spotify.com/playlist/")
+            .split('?').next().unwrap_or("").to_string();
+        format!("https://open.spotify.com/embed/playlist/{}", id)
+    } else if url.starts_with("https://open.spotify.com/album/") {
+        let id = url.trim_start_matches("https://open.spotify.com/album/")
+            .split('?').next().unwrap_or("").to_string();
+        format!("https://open.spotify.com/embed/album/{}", id)
+    } else {
+        return Err("Invalid Spotify URL.".into());
+    };
+
+    let mut curl_cmd = Command::new("curl");
+    curl_cmd.args(&[
+        "-s", "-L",
+        "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "-H", "Accept-Language: en-US,en;q=0.5",
+        &embed_url,
+    ]);
+    #[cfg(target_os = "windows")]
+    { use std::os::windows::process::CommandExt; curl_cmd.creation_flags(0x08000000); }
+
+    let curl_out = curl_cmd.output().map_err(|e| format!("curl failed: {}", e))?;
+    let html = String::from_utf8(curl_out.stdout).map_err(|e| e.to_string())?;
+
+    let re = regex::Regex::new(r#"(?s)<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>"#).unwrap();
+    let json_str = re.captures(&html)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+        .ok_or_else(|| "Could not find embed data. Is the playlist public?".to_string())?;
+
+    let embed_data: serde_json::Value = serde_json::from_str(&json_str)
+        .map_err(|e| format!("JSON parse error: {}", e))?;
+
+    let entity = embed_data
+        .pointer("/props/pageProps/state/data/entity")
+        .ok_or("Could not find entity in embed data")?;
+
+    let playlist_name = entity.get("name")
+        .or_else(|| entity.get("title"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("Imported Playlist")
+        .to_string();
+
+    let cover_art_url = entity
+        .pointer("/coverArt/sources/0/url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let track_list = entity.get("trackList")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let playable_tracks: Vec<&serde_json::Value> = track_list.iter()
+        .filter(|t| t.get("isPlayable").and_then(|v| v.as_bool()).unwrap_or(false)
+            && t.get("title").and_then(|v| v.as_str()).is_some())
+        .collect();
+
+    let total = playable_tracks.len();
+    if total == 0 {
+        return Err("No playable tracks found in this playlist.".into());
+    }
+
+    let yt_dlp_path = get_yt_dlp_path(&app_handle).await;
+    let ffmpeg_path = get_ffmpeg_path(&app_handle).await;
+
+    // Fetch cover art bytes once for all tracks
+    let cover_bytes: Option<Vec<u8>> = if !cover_art_url.is_empty() {
+        match reqwest::get(&cover_art_url).await {
+            Ok(resp) => resp.bytes().await.ok().map(|b| b.to_vec()),
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+
+    let mut saved_paths: Vec<serde_json::Value> = Vec::new();
+
+    for (idx, track) in playable_tracks.iter().enumerate() {
+        let title = track.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+        let artist = track.get("subtitle").and_then(|v| v.as_str()).unwrap_or("Unknown Artist").to_string();
+        let duration_ms = track.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
+        let spotify_uri = track.get("uri").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+        // Emit progress: starting this track
+        let _ = app_handle.emit("spotify-import-progress", SpotifyImportProgress {
+            playlist_id: playlist_id.clone(),
+            track_index: idx,
+            track_total: total,
+            track_title: title.clone(),
+            file_path: String::new(),
+            error: None,
+        });
+
+        let safe_title = title.replace('/', "_").replace('\\', "_");
+        let safe_artist = artist.replace('/', "_").replace('\\', "_");
+        let filename = format!("{} - {}.mp3", safe_artist, safe_title);
+        let target_path = PathBuf::from(&music_dir).join(&filename);
+
+        if !target_path.exists() {
+            // Search YouTube and download
+            let query = format!("ytsearch1:{} {} official audio", artist, title);
+            let mut args = vec![
+                "-4".to_string(),
+                "--no-cache-dir".to_string(),
+                "--no-check-certificates".to_string(),
+                "--geo-bypass".to_string(),
+                "--extractor-args".to_string(), "youtube:player-client=ios,android,web".to_string(),
+                "--no-playlist".to_string(),
+                "--prefer-ffmpeg".to_string(),
+                "--newline".to_string(),
+                "--progress".to_string(),
+                "--extract-audio".to_string(),
+                "--audio-format".to_string(), "mp3".to_string(),
+                "--audio-quality".to_string(), "0".to_string(),
+                "--output".to_string(), target_path.to_str().unwrap_or(&filename).to_string(),
+            ];
+
+            if ffmpeg_path.exists() {
+                args.push("--ffmpeg-location".to_string());
+                args.push(ffmpeg_path.to_str().unwrap().to_string());
+            }
+            args.push(query);
+
+            let mut cmd = if yt_dlp_path.exists() {
+                Command::new(&yt_dlp_path)
+            } else {
+                Command::new("yt-dlp")
+            };
+            cmd.args(&args);
+            #[cfg(target_os = "windows")]
+            { use std::os::windows::process::CommandExt; cmd.creation_flags(0x08000000); }
+            cmd.stdout(Stdio::piped());
+            cmd.stderr(Stdio::null());
+
+            if let Ok(mut child) = cmd.spawn() {
+                if let Some(stdout) = child.stdout.take() {
+                    let reader = BufReader::new(stdout);
+                    for line in reader.lines().flatten() {
+                        if line.contains("[download]") && line.contains("%") {
+                            // Forward download progress
+                            let _ = app_handle.emit("spotify-import-progress", SpotifyImportProgress {
+                                playlist_id: playlist_id.clone(),
+                                track_index: idx,
+                                track_total: total,
+                                track_title: format!("Downloading: {}", title),
+                                file_path: String::new(),
+                                error: None,
+                            });
+                        }
+                    }
+                }
+                let _ = child.wait();
+            }
+        }
+
+        if target_path.exists() {
+            // Tag the file with Spotify metadata + lyrics + cover
+            if let Ok(mut tagged_file) = lofty::read_from_path(&target_path) {
+                let tag = match tagged_file.primary_tag_mut() {
+                    Some(t) => t,
+                    None => {
+                        let t_type = tagged_file.primary_tag_type();
+                        tagged_file.insert_tag(Tag::new(t_type));
+                        tagged_file.primary_tag_mut().unwrap()
+                    }
+                };
+
+                tag.insert_text(ItemKey::TrackTitle, title.clone());
+                tag.insert_text(ItemKey::TrackArtist, artist.clone());
+                tag.insert_text(ItemKey::AlbumTitle, playlist_name.clone());
+
+                let comment = format!("mws-id:{}\nmws-provider:spotify", spotify_uri);
+                tag.insert_text(ItemKey::Comment, comment);
+
+                // Fetch and embed lyrics
+                let search_q = format!("{} {}", artist, title);
+                if let Ok(Some(lyrics_text)) = fetch_lyrics(search_q).await {
+                    tag.insert_text(ItemKey::Lyrics, lyrics_text);
+                }
+
+                // Embed cover art
+                if let Some(ref bytes) = cover_bytes {
+                    let picture = Picture::new_unchecked(
+                        PictureType::CoverFront,
+                        Some(MimeType::Jpeg),
+                        None,
+                        bytes.clone(),
+                    );
+                    tag.push_picture(picture);
+                }
+
+                let _ = tagged_file.save_to_path(&target_path);
+            }
+
+            let path_str = target_path.to_string_lossy().to_string();
+            saved_paths.push(serde_json::json!({
+                "filePath": path_str,
+                "title": title,
+                "artist": artist,
+                "album": playlist_name,
+                "duration": duration_ms / 1000,
+                "spotifyUri": spotify_uri,
+                "coverArt": cover_art_url,
+            }));
+
+            // Emit completion for this track
+            let _ = app_handle.emit("spotify-import-progress", SpotifyImportProgress {
+                playlist_id: playlist_id.clone(),
+                track_index: idx,
+                track_total: total,
+                track_title: title.clone(),
+                file_path: target_path.to_string_lossy().to_string(),
+                error: None,
+            });
+        } else {
+            let _ = app_handle.emit("spotify-import-progress", SpotifyImportProgress {
+                playlist_id: playlist_id.clone(),
+                track_index: idx,
+                track_total: total,
+                track_title: title.clone(),
+                file_path: String::new(),
+                error: Some("Download failed".to_string()),
+            });
+        }
+    }
+
+    Ok(serde_json::json!({
+        "playlistName": playlist_name,
+        "coverArt": cover_art_url,
+        "tracks": saved_paths,
+    }))
+}
+
 fn main() {
     #[cfg(target_os = "linux")]
     {
@@ -2408,6 +2781,9 @@ fn main() {
             is_discord_connected,
             get_stream_url,
             resolve_stream_metadata,
+            start_oauth_server,
+            fetch_spotify_playlist,
+            import_spotify_playlist,
         ])
         .on_window_event(|window, event| {
             match event {

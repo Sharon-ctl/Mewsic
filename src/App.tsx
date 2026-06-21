@@ -55,6 +55,7 @@ function ViewRouter() {
     default:         return <HomeView />;
   }
 }
+const lastKeyTime: Record<string, number> = {};
 
 export default function App() {
   const {
@@ -272,19 +273,35 @@ export default function App() {
         return keyMatch && e.ctrlKey === s.ctrl && e.shiftKey === s.shift && e.altKey === s.alt;
       };
 
+      const rateLimitRepeat = (code: string) => {
+        if (!e.repeat) {
+          lastKeyTime[code] = Date.now();
+          return true;
+        }
+        const now = Date.now();
+        if (now - (lastKeyTime[code] || 0) < 500) return false;
+        lastKeyTime[code] = now;
+        return true;
+      };
+
       if (matches(shortcuts.togglePlay)) {
+        if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
         setIsPlaying(!isPlaying);
       } else if (matches(shortcuts.skipForward)) {
+        if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
         skipForward();
       } else if (matches(shortcuts.skipBackward)) {
+        if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
         skipBackward();
       } else if (matches(shortcuts.playNext)) {
+        if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
         playNext();
       } else if (matches(shortcuts.playPrev)) {
+        if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
         playPrev();
       } else if (matches(shortcuts.volumeUp)) {
@@ -297,21 +314,26 @@ export default function App() {
     };
     const onGlobalShortcuts = (e: KeyboardEvent) => {
       if (e.key === "F11") {
+        if (e.repeat) return;
         e.preventDefault();
         toggleFullscreen().catch(() => {});
       } else if (e.ctrlKey && e.shiftKey && e.code === "Backquote") {
+        if (e.repeat) return;
         e.preventDefault();
         setShowCyberdeck(!showCyberdeck);
       } else if (e.ctrlKey && e.shiftKey && e.code === "KeyR") {
+        if (e.repeat) return;
         e.preventDefault();
         window.location.reload();
       } else if (e.ctrlKey && e.shiftKey && e.code === "KeyD") {
+        if (e.repeat) return;
         e.preventDefault();
         const { isDevMode, setDevMode, addNotification } = useStore.getState();
         const newState = !isDevMode;
         setDevMode(newState);
         addNotification(`Developer Mode: ${newState ? 'ON' : 'OFF'}`, newState ? "success" : "info");
       } else if (e.key === "Escape") {
+        if (e.repeat) return;
         // Close any open modals
         if (showAbout) setShowAbout(false);
         if (editTrack) setEditTrack(null);

@@ -20,6 +20,15 @@ export function ConfirmationModal({
   onCancel,
   variant = "info",
 }: ConfirmationModalProps) {
+  React.useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onCancel]);
+
   const accentClass = 
     variant === "danger" ? "text-red-500 bg-red-500/10 border-red-500/20" :
     variant === "warning" ? "text-amber-500 bg-amber-500/10 border-amber-500/20" :

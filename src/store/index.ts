@@ -128,6 +128,7 @@ interface UISlice {
   playlistScrollOffsets: Record<string, number>;
   smoothScrollEnabled: boolean;
   minecraftIntegrationEnabled: boolean;
+  mewsifyIntegrationEnabled: boolean;
 
   setActiveView: (v: ViewId, skipHistory?: boolean) => void;
   setPlaylistScrollOffset: (playlistId: string, offset: number) => void;
@@ -183,6 +184,7 @@ interface UISlice {
   goForward: () => void;
   setSmoothScrollEnabled: (v: boolean) => void;
   setMinecraftIntegrationEnabled: (v: boolean) => void;
+  setMewsifyIntegrationEnabled: (v: boolean) => void;
 
 
 
@@ -369,7 +371,13 @@ export const useStore = create<Store>()(
           virtualTracks: (s.virtualTracks || []).filter((t) => t.id !== trackId),
           tracks: s.tracks.filter((t) => t.id !== trackId),
         })),
-      setPlaylists: (playlists) => set({ playlists }),
+      setPlaylists: (incoming) => set((s) => {
+        // Keep virtual playlists that don't have a file path
+        const virtuals = s.playlists.filter(p => !p.filePath);
+        const incomingIds = new Set(incoming.map(p => p.id));
+        const filteredVirtuals = virtuals.filter(v => !incomingIds.has(v.id));
+        return { playlists: [...incoming, ...filteredVirtuals] };
+      }),
       addPlaylist: (p) =>
         set((s) => {
           const exists = s.playlists.some((pl) => pl.id === p.id);
@@ -491,6 +499,7 @@ export const useStore = create<Store>()(
       playlistScrollOffsets: {},
       smoothScrollEnabled: true,
       minecraftIntegrationEnabled: false,
+      mewsifyIntegrationEnabled: false,
 
       setActiveView: (v, skipHistory = false) => {
         const { history, historyIndex } = get();
@@ -569,6 +578,16 @@ export const useStore = create<Store>()(
       setSmoothScrollEnabled: (v) => set({ smoothScrollEnabled: v }),
       setMinecraftIntegrationEnabled: (v) => {
         set({ minecraftIntegrationEnabled: v });
+        get().addNotification(
+          "Plugin settings changed. Please press Ctrl+Shift+R to reload the app.",
+          "info",
+          5000,
+          false,
+          "Reload Required"
+        );
+      },
+      setMewsifyIntegrationEnabled: (v) => {
+        set({ mewsifyIntegrationEnabled: v });
         get().addNotification(
           "Plugin settings changed. Please press Ctrl+Shift+R to reload the app.",
           "info",
@@ -794,6 +813,7 @@ export const useStore = create<Store>()(
         playlistScrollOffsets: s.playlistScrollOffsets,
         smoothScrollEnabled: s.smoothScrollEnabled,
         minecraftIntegrationEnabled: s.minecraftIntegrationEnabled,
+        mewsifyIntegrationEnabled: s.mewsifyIntegrationEnabled,
       }),
     }
   )

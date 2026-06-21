@@ -102,6 +102,7 @@ export default function HarbourView() {
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         setShowSecret(prev => !prev);

@@ -21,6 +21,7 @@ export function AddToPlaylistModal({ track, tracks, onClose }: AddToPlaylistModa
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      if (e.repeat) return;
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("keydown", handleKey);

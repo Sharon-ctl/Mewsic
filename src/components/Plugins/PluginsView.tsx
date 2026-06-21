@@ -18,6 +18,11 @@ const MinecraftIcon = () => (
   </svg>
 );
 
+const MewsifyIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" className="text-white">
+    <path d="M17.9 10.9C14.7 9 9.35 8.8 6.3 9.75c-.5.15-1-.15-1.15-.6c-.15-.5.15-1 .6-1.15c3.55-1.05 9.4-.85 13.1 1.35c.45.25.6.85.35 1.3c-.25.35-.85.5-1.3.25m-.1 2.8c-.25.35-.7.5-1.05.25c-2.7-1.65-6.8-2.15-9.95-1.15c-.4.1-.85-.1-.95-.5s.1-.85.5-.95c3.65-1.1 8.15-.55 11.25 1.35c.3.15.45.65.2 1m-1.2 2.75c-.2.3-.55.4-.85.2c-2.35-1.45-5.3-1.75-8.8-.95c-.35.1-.65-.15-.75-.45c-.1-.35.15-.65.45-.75c3.8-.85 7.1-.5 9.7 1.1c.35.15.4.55.25.85M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2"/>
+  </svg>
+);
 
 const BUILT_IN_PLUGINS = [
   {
@@ -53,7 +58,22 @@ const BUILT_IN_PLUGINS = [
       "Receives control instructions (play, next, previous, specific track) from game"
     ]
   },
-
+  {
+    id: "mewsify",
+    name: "Mewsify",
+    version: "1.0.0",
+    author: "Mewsic Team",
+    description: "Import any public Spotify playlist, album, or track directly into your Mewsic library for offline listening.",
+    icon: <MewsifyIcon />,
+    accentColor: "#1DB954",
+    tags: ["Integration", "Importer", "Experimental"],
+    features: [
+      "No Spotify account required",
+      "One-click full album/playlist importing",
+      "Automatic high-quality metadata & lyrics tagging",
+      "Listen instantly with Virtual Playlists",
+    ]
+  },
 ];
 
 export function PluginsView() {
@@ -72,12 +92,16 @@ export function PluginsView() {
     setMinecraftIntegrationEnabled,
     discordEnabled,
     setDiscordEnabled,
+    mewsifyIntegrationEnabled,
+    setMewsifyIntegrationEnabled,
     addNotification
   } = useStore((s) => ({
     minecraftIntegrationEnabled: s.minecraftIntegrationEnabled,
     setMinecraftIntegrationEnabled: s.setMinecraftIntegrationEnabled,
     discordEnabled: s.discordEnabled,
     setDiscordEnabled: s.setDiscordEnabled,
+    mewsifyIntegrationEnabled: s.mewsifyIntegrationEnabled,
+    setMewsifyIntegrationEnabled: s.setMewsifyIntegrationEnabled,
     addNotification: s.addNotification,
   }));
 
@@ -119,11 +143,13 @@ export function PluginsView() {
   const builtinStates: Record<string, boolean> = {
     "discord-rpc": discordEnabled,
     "minecraft-bridge": minecraftIntegrationEnabled,
+    "mewsify": mewsifyIntegrationEnabled,
   };
 
   const builtinSetters: Record<string, (v: boolean) => void> = {
     "discord-rpc": setDiscordEnabled,
     "minecraft-bridge": setMinecraftIntegrationEnabled,
+    "mewsify": setMewsifyIntegrationEnabled,
   };
 
   const handleOpenPluginsFolder = async () => {
@@ -342,9 +368,14 @@ export function PluginsView() {
                       </div>
                       <p className="text-xs text-text-secondary mt-1">
                         by <span className="text-text-primary font-medium">{selectedPlugin.author}</span>
+                        {selectedPlugin.id === "mewsify" && (
+                          <span className="ml-2.5 text-[10px] text-purple-400 font-bold bg-purple-400/15 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                            Experimental
+                          </span>
+                        )}
                         {selectedPlugin.isEnabled && !selectedPlugin.isDisabled && (
                           <>
-                            <span className="ml-2.5 text-[10px] text-green-400 font-bold bg-green-400/15 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                            <span className={`${selectedPlugin.id === "mewsify" ? "ml-1.5" : "ml-2.5"} text-[10px] text-green-400 font-bold bg-green-400/15 px-2 py-0.5 rounded-full inline-flex items-center gap-1`}>
                               Active
                             </span>
                             {selectedPlugin.id === "discord-rpc" && (
