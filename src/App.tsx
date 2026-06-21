@@ -109,7 +109,7 @@ export default function App() {
   const { initialize } = useLibrary();
 
   // Load plugins
-  usePlugins();
+  usePlugins(true);
 
   // OS media controls (MPRIS / SMTC / Now Playing)
   useMediaControls(); // Sync with OS Media Controls Interface

@@ -450,7 +450,7 @@ export interface PluginData {
   css_content: string | null;
 }
 
-export function usePlugins() {
+export function usePlugins(isRoot = false) {
   const [plugins, setPlugins] = useState<PluginData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const pluginsRef = useRef<PluginData[]>([]);
@@ -460,6 +460,12 @@ export function usePlugins() {
   useEffect(() => {
     async function loadPlugins() {
       try {
+        const loadedPlugins = await invoke<PluginData[]>("get_plugins");
+        setPlugins(loadedPlugins);
+        pluginsRef.current = loadedPlugins;
+
+        if (!isRoot) return;
+
         initPluginApi();
         if (mewsifyIntegrationEnabled) {
           runMewsifyPlugin();
@@ -469,28 +475,20 @@ export function usePlugins() {
             window.Mewsic.ui.unregisterTab("plugin:mewsify");
           }
         }
-      } catch (e) {
-        console.error("Failed to initialize Plugin API or built-in plugins:", e);
-      }
 
-      if (minecraftIntegrationEnabled) {
-        if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft !== "function") {
-          try {
-            runMinecraftPlugin();
-          } catch (e) {
-            console.error("Error executing Minecraft plugin:", e);
+        if (minecraftIntegrationEnabled) {
+          if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft !== "function") {
+            try {
+              runMinecraftPlugin();
+            } catch (e) {
+              console.error("Error executing Minecraft plugin:", e);
+            }
+          }
+        } else {
+          if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft === "function") {
+            try { window.Mewsic.disconnectMinecraft(); } catch (e) { }
           }
         }
-      } else {
-        if (window.Mewsic && typeof window.Mewsic.disconnectMinecraft === "function") {
-          try { window.Mewsic.disconnectMinecraft(); } catch (e) { }
-        }
-      }
-
-      try {
-        const loadedPlugins = await invoke<PluginData[]>("get_plugins");
-        setPlugins(loadedPlugins);
-        pluginsRef.current = loadedPlugins;
 
         const disabledPlugins: string[] = JSON.parse(localStorage.getItem("mewsic_disabled_plugins") || "[]");
 
@@ -539,6 +537,8 @@ export function usePlugins() {
     loadPlugins();
 
     return () => {
+      if (!isRoot) return;
+
       for (const plugin of pluginsRef.current) {
         document.getElementById(`plugin-style-${plugin.id}`)?.remove();
         document.getElementById(`plugin-script-${plugin.id}`)?.remove();
@@ -551,7 +551,7 @@ export function usePlugins() {
         window.Mewsic.ui.unregisterTab("plugin:mewsify");
       }
     };
-  }, [minecraftIntegrationEnabled, mewsifyIntegrationEnabled]);
+  }, [minecraftIntegrationEnabled, mewsifyIntegrationEnabled, isRoot]);
 
   return { plugins, error };
 }
