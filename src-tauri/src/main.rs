@@ -541,6 +541,101 @@ fn get_plugins_dir(app_handle: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn install_plugin_from_path(app_handle: tauri::AppHandle, path: String) -> Result<(), String> {
+    let src = PathBuf::from(&path);
+
+    let plugins_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map(|p| p.join("plugins"))
+        .map_err(|e| e.to_string())?;
+    fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+
+    fn copy_dir(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
+        fs::create_dir_all(dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let ty = entry.file_type()?;
+            if ty.is_dir() {
+                copy_dir(&entry.path(), &dst.join(entry.file_name()))?;
+            } else {
+                fs::copy(entry.path(), dst.join(entry.file_name()))?;
+            }
+        }
+        Ok(())
+    }
+
+    // Case 1: it's already a .mewsic directory
+    if src.is_dir() && src.extension().and_then(|s| s.to_str()) == Some("mewsic") {
+        if !src.join("manifest.json").exists() {
+            return Err("Missing manifest.json".into());
+        }
+        let dest = plugins_dir.join(src.file_name().unwrap_or_default());
+        if dest.exists() { fs::remove_dir_all(&dest).map_err(|e| e.to_string())?; }
+        copy_dir(&src, &dest).map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    // Case 2: it's a zip archive (extension is .mewsic or .zip — we treat both the same)
+    if src.is_file() {
+        let file = fs::File::open(&src).map_err(|e| e.to_string())?;
+        let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+        // Detect common path prefix inside the zip (some zippers wrap everything in a folder)
+        let prefix: Option<String> = {
+            let first = archive.by_index(0).map_err(|e| e.to_string())?;
+            let name = first.name().to_string();
+            if name.contains('/') {
+                Some(name.split('/').next().unwrap_or("").to_string())
+            } else {
+                None
+            }
+        };
+
+        // Use the archive filename (without extension) as the plugin folder name
+        let plugin_stem = src.file_stem().unwrap_or_default().to_string_lossy().to_string();
+        let plugin_folder = format!("{}.mewsic", plugin_stem.trim_end_matches(".mewsic"));
+        let dest = plugins_dir.join(&plugin_folder);
+        if dest.exists() { fs::remove_dir_all(&dest).map_err(|e| e.to_string())?; }
+        fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+            let raw_name = file.name().to_string();
+
+            // Strip the common prefix if present
+            let relative = if let Some(ref pfx) = prefix {
+                raw_name.strip_prefix(&format!("{}/", pfx)).unwrap_or(&raw_name).to_string()
+            } else {
+                raw_name.clone()
+            };
+
+            if relative.is_empty() { continue; }
+
+            let out_path = dest.join(&relative);
+            if file.is_dir() {
+                fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+            } else {
+                if let Some(parent) = out_path.parent() {
+                    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                let mut out = fs::File::create(&out_path).map_err(|e| e.to_string())?;
+                std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+            }
+        }
+
+        if !dest.join("manifest.json").exists() {
+            fs::remove_dir_all(&dest).ok();
+            return Err("Invalid plugin archive: missing manifest.json".into());
+        }
+        return Ok(());
+    }
+
+    Err("Path must be a .mewsic folder or a .mewsic/.zip archive".into())
+}
+
+
+#[tauri::command]
 fn show_in_folder(path: String) -> Result<(), String> {
     let path_buf = std::path::PathBuf::from(&path);
     if !path_buf.exists() {
@@ -1727,8 +1822,8 @@ fn start_asset_server(port: u16) {
         match Server::http(&addr) {
             Ok(server) => {
                 let server = std::sync::Arc::new(server);
-                // Spawn 32 worker threads to handle requests in parallel
-                for _ in 0..32 {
+                // Spawn 4 worker threads to handle requests in parallel (saving thread overhead and RAM)
+                for _ in 0..4 {
                     let server = server.clone();
                     std::thread::spawn(move || {
                         for request in server.incoming_requests() {
@@ -1888,7 +1983,12 @@ fn handle_request(request: tiny_http::Request) {
                         Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
                         Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"*"[..]).unwrap(),
                         Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"GET, OPTIONS"[..]).unwrap(),
+                        Header::from_bytes(&b"Access-Control-Expose-Headers"[..], &b"Content-Range, Accept-Ranges, Content-Length"[..]).unwrap(),
                         Header::from_bytes(&b"Accept-Ranges"[..], &b"bytes"[..]).unwrap(),
+                        Header::from_bytes(&b"Cache-Control"[..], &b"no-cache, no-store, must-revalidate"[..]).unwrap(),
+                        Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap(),
+                        Header::from_bytes(&b"Expires"[..], &b"0"[..]).unwrap(),
+                        Header::from_bytes(&b"Vary"[..], &b"Range"[..]).unwrap(),
                     ],
                     reader,
                     content_length.map(|l| l as usize),
@@ -1915,7 +2015,7 @@ fn handle_request(request: tiny_http::Request) {
         .unwrap_or(256);
     
     let is_lowend = query.contains("lowend=1");
-    let requested_size = if is_lowend { (requested_size as f32 * 0.75) as u32 } else { requested_size };
+    let requested_size = if is_lowend { (requested_size as f32 * 0.5) as u32 } else { requested_size };
 
     let decoded_path = percent_decode_str(path_query)
         .decode_utf8_lossy()
@@ -1977,7 +2077,8 @@ fn handle_request(request: tiny_http::Request) {
                         if let Ok(img) = reader.decode() {
                             let resized = img.thumbnail(requested_size, requested_size);
                             let mut buffer = Cursor::new(Vec::new());
-                            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, 60);
+                            let quality = if is_lowend { 35 } else { 60 };
+                            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, quality);
                             if encoder.encode_image(&resized.to_rgb8()).is_ok()
                             {
                                 let compressed_data = buffer.into_inner();
@@ -2062,45 +2163,89 @@ fn handle_request(request: tiny_http::Request) {
         use std::io::{Read, Seek, SeekFrom};
         let file_len = file.metadata().map(|m| m.len()).unwrap_or(0);
         let end = range_end.unwrap_or(file_len.saturating_sub(1));
+
         let length = if end >= range_start {
             end - range_start + 1
         } else {
             0
         };
 
-        if is_range {
-            let _ = file.seek(SeekFrom::Start(range_start));
-            let chunked_reader = file.take(length as u64);
+        let is_head = request.method() == &tiny_http::Method::Head;
 
+        if is_range {
+            
             let headers = vec![
                 Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes()).unwrap(),
                 Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
+                Header::from_bytes(&b"Access-Control-Expose-Headers"[..], &b"Content-Range, Accept-Ranges, Content-Length"[..]).unwrap(),
                 Header::from_bytes(&b"Accept-Ranges"[..], &b"bytes"[..]).unwrap(),
                 Header::from_bytes(
                     &b"Content-Range"[..],
                     format!("bytes {}-{}/{}", range_start, end, file_len).as_bytes(),
                 )
                 .unwrap(),
+                Header::from_bytes(&b"Cache-Control"[..], &b"no-cache, no-store, must-revalidate"[..]).unwrap(),
+                Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap(),
+                Header::from_bytes(&b"Expires"[..], &b"0"[..]).unwrap(),
+                Header::from_bytes(&b"Vary"[..], &b"Range"[..]).unwrap(),
             ];
 
-            let response = tiny_http::Response::new(
-                tiny_http::StatusCode(206),
-                headers,
-                chunked_reader,
-                Some(length as usize),
-                None,
-            );
-            let _ = request.respond(response);
+            if is_head {
+                let response = tiny_http::Response::new(
+                    tiny_http::StatusCode(206),
+                    headers,
+                    std::io::empty(),
+                    Some(length as usize),
+                    None,
+                )
+                .with_chunked_threshold(usize::MAX);
+                let _ = request.respond(response);
+            } else {
+                let _ = file.seek(SeekFrom::Start(range_start));
+                let chunked_reader = file.take(length as u64);
+                let response = tiny_http::Response::new(
+                    tiny_http::StatusCode(206),
+                    headers,
+                    chunked_reader,
+                    Some(length as usize),
+                    None,
+                )
+                .with_chunked_threshold(usize::MAX);
+                let _ = request.respond(response);
+            }
         } else {
-            let mut response = Response::from_file(file);
-            response.add_header(
+            
+            let headers = vec![
                 Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes()).unwrap(),
-            );
-            response.add_header(
                 Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
-            );
-            response.add_header(Header::from_bytes(&b"Accept-Ranges"[..], &b"bytes"[..]).unwrap());
-            let _ = request.respond(response);
+                Header::from_bytes(&b"Access-Control-Expose-Headers"[..], &b"Content-Range, Accept-Ranges, Content-Length"[..]).unwrap(),
+                Header::from_bytes(&b"Accept-Ranges"[..], &b"bytes"[..]).unwrap(),
+                Header::from_bytes(&b"Cache-Control"[..], &b"no-cache, no-store, must-revalidate"[..]).unwrap(),
+                Header::from_bytes(&b"Pragma"[..], &b"no-cache"[..]).unwrap(),
+                Header::from_bytes(&b"Expires"[..], &b"0"[..]).unwrap(),
+                Header::from_bytes(&b"Vary"[..], &b"Range"[..]).unwrap(),
+            ];
+
+            if is_head {
+                let response = tiny_http::Response::new(
+                    tiny_http::StatusCode(200),
+                    headers,
+                    std::io::empty(),
+                    Some(file_len as usize),
+                    None,
+                )
+                .with_chunked_threshold(usize::MAX);
+                let _ = request.respond(response);
+            } else {
+                let mut response = Response::from_file(file)
+                    .with_chunked_threshold(usize::MAX);
+                for h in headers {
+                    if h.field.as_str().to_ascii_lowercase() != "content-length" {
+                        response.add_header(h);
+                    }
+                }
+                let _ = request.respond(response);
+            }
         }
     } else {
         let _ = request.respond(Response::from_string("Forbidden").with_status_code(403));
@@ -2333,6 +2478,40 @@ struct SpotifyImportProgress {
     error: Option<String>,
 }
 
+async fn fetch_track_cover_art(spotify_uri: &str) -> Option<String> {
+    if !spotify_uri.starts_with("spotify:track:") {
+        return None;
+    }
+    let id = spotify_uri.trim_start_matches("spotify:track:");
+    let embed_url = format!("https://open.spotify.com/embed/track/{}", id);
+
+    let mut cmd = std::process::Command::new("curl");
+    cmd.args(&[
+        "-s", "-L",
+        "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "-H", "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "-H", "Accept-Language: en-US,en;q=0.5",
+        &embed_url,
+    ]);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000);
+    }
+
+    let output = cmd.output().ok()?;
+    let html = String::from_utf8(output.stdout).ok()?;
+    let re = regex::Regex::new(r#"(?s)<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>"#).ok()?;
+    let json_str = re.captures(&html)?.get(1)?.as_str().to_string();
+    let embed_data: serde_json::Value = serde_json::from_str(&json_str).ok()?;
+    let entity = embed_data.pointer("/props/pageProps/state/data/entity")?;
+    
+    entity.pointer("/coverArt/sources/0/url")
+        .or_else(|| entity.pointer("/visualIdentity/image/0/url"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
 #[tauri::command]
 async fn import_spotify_playlist(
     app_handle: tauri::AppHandle,
@@ -2429,6 +2608,20 @@ async fn import_spotify_playlist(
         let artist = track.get("subtitle").and_then(|v| v.as_str()).unwrap_or("Unknown Artist").to_string();
         let duration_ms = track.get("duration").and_then(|v| v.as_u64()).unwrap_or(0);
         let spotify_uri = track.get("uri").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+        let mut track_cover_bytes = cover_bytes.clone();
+        let mut track_cover_url = cover_art_url.clone();
+
+        if !spotify_uri.is_empty() {
+            if let Some(individual_cover) = fetch_track_cover_art(&spotify_uri).await {
+                if let Ok(resp) = reqwest::get(&individual_cover).await {
+                    if let Ok(b) = resp.bytes().await {
+                        track_cover_bytes = Some(b.to_vec());
+                        track_cover_url = individual_cover;
+                    }
+                }
+            }
+        }
 
         // Emit progress: starting this track
         let _ = app_handle.emit("spotify-import-progress", SpotifyImportProgress {
@@ -2528,7 +2721,7 @@ async fn import_spotify_playlist(
                 }
 
                 // Embed cover art
-                if let Some(ref bytes) = cover_bytes {
+                if let Some(ref bytes) = track_cover_bytes {
                     let picture = Picture::new_unchecked(
                         PictureType::CoverFront,
                         Some(MimeType::Jpeg),
@@ -2549,7 +2742,7 @@ async fn import_spotify_playlist(
                 "album": playlist_name,
                 "duration": duration_ms / 1000,
                 "spotifyUri": spotify_uri,
-                "coverArt": cover_art_url,
+                "coverArt": track_cover_url,
             }));
 
             // Emit completion for this track
@@ -2588,7 +2781,7 @@ fn main() {
         std::env::set_var("WEBKIT_DISABLE_MPRIS_PLUGIN", "1");
         
         // Memory-saving tweaks for WebKitGTK
-        std::env::set_var("WEBKIT_FORCE_SANDBOX", "0");
+        std::env::set_var("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1");
         std::env::set_var("G_SLICE", "always-malloc");
         std::env::set_var("MALLOC_CHECK_", "0");
         
@@ -2600,6 +2793,13 @@ fn main() {
         // High CPU load can cause audio underruns/crackling if the buffer is too small.
         // A larger buffer (200ms) prevents static/stuttering under heavy CPU utilization.
         std::env::set_var("PULSE_LATENCY_MSEC", "200");
+
+        // Prevent Wayland Error 71 (Protocol error) crashes on Wayland compositors (e.g. Bazzite, GNOME)
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
+        // Disable VA-API hardware video acceleration to prevent gst-plugin-scanner crashes/freezes on Intel graphics
+        std::env::set_var("LIBVA_DRIVER_NAME", "disabled");
+        std::env::set_var("GST_VAAPI_ALL_DRIVERS", "0");
     }
 
 
@@ -2611,11 +2811,18 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
+            }
+            // Forward any file paths passed to the already-running instance
+            for arg in args.iter().skip(1) {
+                let path = arg.trim().to_string();
+                if !path.starts_with('-') && !path.is_empty() {
+                    let _ = app.emit("open-file", &path);
+                }
             }
         }))
         .manage(DiscordState::new())
@@ -2630,6 +2837,21 @@ fn main() {
         .setup(|app| {
             // ── Local Asset Server (tiny_http) ────────────────────────
             start_asset_server(1422);
+
+            // Emit any file paths passed on cold start (double-clicked file)
+            let cold_args: Vec<String> = std::env::args().skip(1).collect();
+            for arg in &cold_args {
+                let path = arg.trim().to_string();
+                if !path.starts_with('-') && !path.is_empty() {
+                    let handle = app.handle().clone();
+                    let p = path.clone();
+                    std::thread::spawn(move || {
+                        // Short delay to let the webview finish loading before the event fires
+                        std::thread::sleep(std::time::Duration::from_millis(1200));
+                        let _ = handle.emit("open-file", &p);
+                    });
+                }
+            }
 
             // ── OS Media Controls (MPRIS / SMTC / Now Playing) ────────
             let media_state = MediaManagerState::new(app.handle().clone());
@@ -2739,6 +2961,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_paths,
+            get_downloads_dir,
             scan_music_directory,
             get_track_metadata,
             list_playlists,
@@ -2776,6 +2999,8 @@ fn main() {
             clear_image_cache,
             get_plugins,
             get_plugins_dir,
+            install_plugin_from_path,
+
             delete_plugin,
             show_in_folder,
             is_discord_connected,

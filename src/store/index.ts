@@ -76,6 +76,7 @@ interface LibrarySlice {
   setCoversDir: (dir: string) => void;
   setDiscordCoverCache: (id: string, url: string) => void;
   removeTrack: (id: string) => void;
+  purgeVirtualTracks: () => void;
 }
 
 // ── UI / Settings Slice ──────────────────────────────────────────────────────
@@ -268,6 +269,7 @@ export const useStore = create<Store>()(
 
         // If past 3s, restart current track
         if (currentTime > 3) {
+          set({ currentTime: 0 });
           requestSeek(0);
           return;
         }
@@ -290,12 +292,16 @@ export const useStore = create<Store>()(
 
       skipForward: () => {
         const { currentTime, duration, requestSeek } = get();
-        requestSeek(Math.min(currentTime + 5, duration));
+        const nextTime = Math.min(currentTime + 5, duration);
+        set({ currentTime: nextTime });
+        requestSeek(nextTime);
       },
 
       skipBackward: () => {
         const { currentTime, requestSeek } = get();
-        requestSeek(Math.max(currentTime - 5, 0));
+        const nextTime = Math.max(currentTime - 5, 0);
+        set({ currentTime: nextTime });
+        requestSeek(nextTime);
       },
 
       syncQueue: (tracks, sourceId) => {
@@ -434,6 +440,54 @@ export const useStore = create<Store>()(
         set({
           tracks: tracks.filter(t => t.id !== id),
           virtualTracks: (virtualTracks || []).filter(t => t.id !== id),
+          playlists: updatedPlaylists,
+          queue: updatedQueue,
+          originalQueue: updatedOriginalQueue,
+          queueIndex: newIndex,
+          currentTrack: newCurrent,
+        });
+      },
+      purgeVirtualTracks: () => {
+        const { tracks, playlists, currentTrack, queue, originalQueue, queueIndex } = get();
+
+        // Identify all virtual track IDs
+        const virtualTrackIds = new Set(
+          tracks
+            .filter((t) => t.isVirtual || t.provider === "virtual")
+            .map((t) => t.id)
+        );
+
+        if (virtualTrackIds.size === 0) return;
+
+        // Remove from playlists
+        const updatedPlaylists = playlists.map(pl => ({
+          ...pl,
+          trackIds: pl.trackIds.filter(tid => !virtualTrackIds.has(tid))
+        }));
+
+        // Remove from queue
+        const updatedQueue = queue.filter(t => !virtualTrackIds.has(t.id));
+        const updatedOriginalQueue = originalQueue.filter(t => !virtualTrackIds.has(t.id));
+        let newIndex = queueIndex;
+        let newCurrent = currentTrack;
+
+        if (currentTrack && virtualTrackIds.has(currentTrack.id)) {
+          if (updatedQueue.length > 0) {
+            newIndex = Math.min(queueIndex, updatedQueue.length - 1);
+            newCurrent = updatedQueue[newIndex];
+          } else {
+            newIndex = -1;
+            newCurrent = null;
+          }
+        } else if (currentTrack) {
+          // Recalculate current queue index of the playing track in the new queue
+          const newIdx = updatedQueue.findIndex(t => t.id === currentTrack.id);
+          newIndex = newIdx !== -1 ? newIdx : -1;
+        }
+
+        set({
+          tracks: tracks.filter(t => !virtualTrackIds.has(t.id)),
+          virtualTracks: [],
           playlists: updatedPlaylists,
           queue: updatedQueue,
           originalQueue: updatedOriginalQueue,

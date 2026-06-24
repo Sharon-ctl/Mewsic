@@ -230,6 +230,35 @@ export function useLibrary() {
 
     // Ensure the playlist is saved to a file if it was imported via JSON or has no path
     let activePlaylist = { ...pl };
+    
+    // Map virtual/imported tracks to existing ones in the local library
+    if (activePlaylist.tracks) {
+      const updatedTrackIds: string[] = [];
+      const updatedTracks: Track[] = [];
+      
+      for (const t of activePlaylist.tracks) {
+        const localMatch = tracks.find(lt => {
+          if (!lt.isVirtual && !lt.filePath.startsWith("ytsearch:")) {
+            if (t.sourceId && lt.sourceId && t.sourceId === lt.sourceId) return true;
+            if (t.title?.toLowerCase().trim() === lt.title?.toLowerCase().trim() && 
+                t.artist?.toLowerCase().trim() === lt.artist?.toLowerCase().trim()) return true;
+          }
+          return false;
+        });
+        
+        if (localMatch) {
+          updatedTrackIds.push(localMatch.id);
+          updatedTracks.push(localMatch);
+        } else {
+          updatedTrackIds.push(t.id);
+          updatedTracks.push(t);
+        }
+      }
+      
+      activePlaylist.trackIds = updatedTrackIds;
+      activePlaylist.tracks = updatedTracks;
+    }
+
     const exists = playlists.some(p => p.id === activePlaylist.id);
     const needsNewPath = !activePlaylist.filePath || !activePlaylist.filePath.startsWith(playlistsDir);
 

@@ -236,6 +236,7 @@ export function initPluginApi() {
       addTracks: (tracks: Track[]) => useStore.getState().addTracks(tracks),
       addVirtualTrack: (track: Track) => useStore.getState().addVirtualTrack(track),
       removeVirtualTrack: (trackId: string) => useStore.getState().removeVirtualTrack(trackId),
+      purgeVirtualTracks: () => useStore.getState().purgeVirtualTracks(),
       updateTrack: (track: Track) => useStore.getState().updateTrack(track),
 
       addPlaylist: (playlist: any) => useStore.getState().addPlaylist(playlist),

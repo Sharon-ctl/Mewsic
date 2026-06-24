@@ -11,6 +11,7 @@
   },
   "bundle": {
     "active": true,
+    "category": "Music",
     "targets": [
       "msi",
       "appimage",
@@ -52,7 +53,79 @@
     },
     "macOS": {
       "minimumSystemVersion": "13.0"
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": ["mewsic"],
+        "name": "Mewsic Plugin",
+        "description": "Mewsic plugin package",
+        "mimeType": "application/x-mewsic-plugin",
+        "role": "Editor"
+      },
+      {
+        "ext": ["mp3"],
+        "name": "MP3 Audio",
+        "description": "MPEG Audio Layer III",
+        "mimeType": "audio/mpeg",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["flac"],
+        "name": "FLAC Audio",
+        "description": "Free Lossless Audio Codec",
+        "mimeType": "audio/flac",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["wav"],
+        "name": "WAV Audio",
+        "description": "Waveform Audio",
+        "mimeType": "audio/wav",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["ogg"],
+        "name": "OGG Audio",
+        "description": "Ogg Vorbis Audio",
+        "mimeType": "audio/ogg",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["m4a"],
+        "name": "M4A Audio",
+        "description": "MPEG-4 Audio",
+        "mimeType": "audio/mp4",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["aac"],
+        "name": "AAC Audio",
+        "description": "Advanced Audio Coding",
+        "mimeType": "audio/aac",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["opus"],
+        "name": "Opus Audio",
+        "description": "Opus Audio",
+        "mimeType": "audio/opus",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["aiff", "aif"],
+        "name": "AIFF Audio",
+        "description": "Audio Interchange File Format",
+        "mimeType": "audio/aiff",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["wma"],
+        "name": "WMA Audio",
+        "description": "Windows Media Audio",
+        "mimeType": "audio/x-ms-wma",
+        "role": "Viewer"
+      }
+    ]
   },
   "app": {
     "withGlobalTauri": true,
@@ -71,7 +144,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' ws://127.0.0.1:3012 ws://localhost:3012 http://* https://*; media-src 'self' asset: http://asset.localhost https://asset.localhost http://127.0.0.1:1422 http://localhost:1422 http://* https://*; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost http://127.0.0.1:1422 http://localhost:1422 https://*.mzstatic.com https://*.saavncdn.com https://*.ytimg.com https://*.googleusercontent.com http://* https://*",
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; connect-src 'self' ws://127.0.0.1:3012 ws://localhost:3012 ws://127.0.0.1:3678 http://* https://*; media-src 'self' asset: http://asset.localhost https://asset.localhost http://127.0.0.1:1422 http://localhost:1422 http://* https://*; img-src 'self' data: blob: asset: http://asset.localhost https://asset.localhost http://127.0.0.1:1422 http://localhost:1422 https://*.mzstatic.com https://*.saavncdn.com https://*.ytimg.com https://*.googleusercontent.com http://* https://*",
       "assetProtocol": {
         "enable": true,
         "scope": [

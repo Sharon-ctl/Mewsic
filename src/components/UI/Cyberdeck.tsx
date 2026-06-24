@@ -28,7 +28,8 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
     systemNotifications, setSystemNotifications,
     musicDir, setMusicDir, playlistsDir, setPlaylistsDir, coversDir, setCoversDir,
     isDemoMode, setDemoMode,
-    isDevMode, setDevMode
+    isDevMode, setDevMode,
+    purgeVirtualTracks
   } = useStore(useShallow((s) => ({
     tracks: s.tracks, playlists: s.playlists, accentColor: s.accentColor, setAccentColor: s.setAccentColor,
     isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying, skipForward: s.skipForward, skipBackward: s.skipBackward,
@@ -40,7 +41,8 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
     systemNotifications: s.systemNotifications, setSystemNotifications: s.setSystemNotifications,
     musicDir: s.musicDir, setMusicDir: s.setMusicDir, playlistsDir: s.playlistsDir, setPlaylistsDir: s.setPlaylistsDir,
     coversDir: s.coversDir, setCoversDir: s.setCoversDir, isDemoMode: s.isDemoMode, setDemoMode: s.setDemoMode,
-    isDevMode: s.isDevMode, setDevMode: s.setDevMode
+    isDevMode: s.isDevMode, setDevMode: s.setDevMode,
+    purgeVirtualTracks: s.purgeVirtualTracks
   })));
   const { rescanDirectory } = useLibrary();
   useEffect(() => {
@@ -76,6 +78,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         addLog("  DEMO-MODE     - TOGGLE PRIVACY MODE");
         addLog("  CLEAR         - RESET TERMINAL LOGS");
         addLog("  REFRESHPLAYLIST - REGENERATE PLAYLIST FILES");
+        addLog("  PURGE-VIRTUAL - REMOVE ALL VIRTUAL TRACKS FROM LIBRARY");
         addLog("  EXIT / QUIT   - CLOSE");
         addLog("--- SETTINGS CONTROL ---");
         addLog("  SET <KEY> <VAL> - CONFIGURE APP");
@@ -262,6 +265,17 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         const realTracks = tracks.filter(t => !t.id.startsWith("mock-"));
         useStore.getState().setTracks(realTracks);
         addLog("MOCK TRACKS REMOVED", "success");
+        break;
+
+      case "purge-virtual":
+        if (args[1] === "help") {
+          addLog("USAGE: PURGE-VIRTUAL");
+          addLog("REMOVES ALL VIRTUAL TRACKS (E.G. PLUGINS/STREAMED TRACKS) FROM THE LIBRARY.");
+          break;
+        }
+        addLog("PURGING ALL VIRTUAL TRACKS FROM LIBRARY...", "info");
+        purgeVirtualTracks();
+        addLog("VIRTUAL TRACKS PURGED SUCCESSFULLY.", "success");
         break;
 
       case "play":

@@ -8,13 +8,14 @@ export interface LyricLine {
 
 function parseLRC(text: string): LyricLine[] {
   const lines: LyricLine[] = [];
-  const regex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/g;
+  const regex = /\[(\d+):(\d{2})(?:\.(\d+))?\](.*)/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(text)) !== null) {
     const minutes = parseInt(match[1], 10);
     const seconds = parseInt(match[2], 10);
-    const ms = parseInt(match[3].padEnd(3, "0"), 10);
+    const msStr = match[3] || "0";
+    const ms = parseInt(msStr.padEnd(3, "0").slice(0, 3), 10);
     const time = minutes * 60 + seconds + ms / 1000;
     const lyricText = match[4].trim();
     if (lyricText) {
@@ -70,7 +71,7 @@ export function Lyrics({
 
   const isSynced = useMemo(() => {
     if (!lyrics) return false;
-    return /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics);
+    return /\[\d+:\d{2}(?:\.\d+)?\]/.test(lyrics);
   }, [lyrics]);
 
   const parsedLyrics = useMemo(() => {

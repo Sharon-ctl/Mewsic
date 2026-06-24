@@ -7,6 +7,7 @@ interface ThemedSliderProps {
   max: number;
   step?: number;
   onChange: (val: number) => void;
+  onChangeCommit?: (val: number) => void;
   className?: string;
   showTooltip?: boolean;
   formatTooltip?: (val: number) => string;
@@ -19,6 +20,7 @@ export function ThemedSlider({
   max,
   step = 0.1,
   onChange,
+  onChangeCommit,
   className = "",
   showTooltip = true,
   formatTooltip,
@@ -34,7 +36,13 @@ export function ThemedSlider({
       if (disabled) return;
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const pct = Math.max(0, Math.min(1, x / rect.width));
+      
+      const thumbRadius = 6;
+      const trackWidth = rect.width - 2 * thumbRadius;
+      // Clamp the mouse x position to the interactable track
+      const clampedX = Math.max(0, Math.min(trackWidth, x - thumbRadius));
+      const pct = trackWidth > 0 ? clampedX / trackWidth : 0;
+      
       const val = min + pct * (max - min);
       setHoverVal(val);
       setTooltipPos(x);
@@ -70,9 +78,12 @@ export function ThemedSlider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        onMouseUp={(e) => onChangeCommit?.(parseFloat(e.currentTarget.value))}
+        onTouchEnd={(e) => onChangeCommit?.(parseFloat(e.currentTarget.value))}
         className="w-full seek-bar disabled:opacity-30"
         style={{ 
           "--progress": `${progress}%`,
+          "--progress-ratio": progress / 100,
         } as React.CSSProperties}
       />
     </div>

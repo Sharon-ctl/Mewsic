@@ -282,11 +282,12 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 /* Progress track fill via CSS custom property */
 .seek-bar {
+  --fill-width: calc(6px + var(--progress-ratio, 0) * (100% - 12px));
   background: linear-gradient(
     to right,
     var(--accent) 0%,
-    var(--accent) var(--progress, 0%),
-    var(--border-glass) var(--progress, 0%),
+    var(--accent) var(--fill-width),
+    var(--border-glass) var(--fill-width),
     var(--border-glass) 100%
   ) !important;
   height: 4px;

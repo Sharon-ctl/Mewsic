@@ -167,8 +167,13 @@ export function LibraryView() {
   const { displayTracks, demoTrackCount } = useDisplayData();
   const { rescanDirectory } = useLibrary();
 
-  const [sortKey, setSortKey] = useState<SortKey>("title");
-  const [sortAsc, setSortAsc] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    return (localStorage.getItem("library_sort_key") as SortKey) || "title";
+  });
+  const [sortAsc, setSortAsc] = useState<boolean>(() => {
+    const val = localStorage.getItem("library_sort_asc");
+    return val === null ? true : val === "true";
+  });
   const [addTracks, setAddTracks] = useState<Track[] | null>(null);
 
 
@@ -205,9 +210,17 @@ export function LibraryView() {
   }, []);
 
   const toggleSort = useCallback((key: SortKey) => {
-    if (sortKey === key) setSortAsc((a) => !a);
-    else { setSortKey(key); setSortAsc(true); }
-  }, [sortKey]);
+    if (sortKey === key) {
+      const nextAsc = !sortAsc;
+      setSortAsc(nextAsc);
+      localStorage.setItem("library_sort_asc", String(nextAsc));
+    } else {
+      setSortKey(key);
+      setSortAsc(true);
+      localStorage.setItem("library_sort_key", key);
+      localStorage.setItem("library_sort_asc", "true");
+    }
+  }, [sortKey, sortAsc]);
 
   const handleAddToPlaylist = useCallback((track: Track) => {
     setAddTrack(track);

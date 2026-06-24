@@ -59,7 +59,7 @@ export function PlayerBar() {
     toggleMute: s.toggleMute,
   })));
 
-  const { togglePlay, seek } = useAudioPlayer();
+  const { togglePlay, seek, setSeeking } = useAudioPlayer();
 
   const handleVolumeChange = useCallback(
     (val: number) => {
@@ -188,7 +188,7 @@ export function PlayerBar() {
         </div>
 
         {/* Seek bar row */}
-        <SeekBarRow duration={duration} seek={seek} />
+        <SeekBarRow duration={duration} seek={seek} setSeeking={setSeeking} />
       </div>
 
       {/* ── Volume (Right) ────────────────────────────────────────────────────────── */}
@@ -220,9 +220,10 @@ export function PlayerBar() {
 }
 
 // Subcomponent to isolate the 20fps re-renders to just the progress bar
-function SeekBarRow({ duration, seek }: { duration: number, seek: (time: number) => void }) {
+function SeekBarRow({ duration, seek, setSeeking }: { duration: number, seek: (time: number) => void, setSeeking: (v: boolean) => void }) {
   const currentTime = useStore(s => s.currentTime);
   const currentTrack = useStore(s => s.currentTrack);
+  const setCurrentTime = useStore(s => s.setCurrentTime);
 
   return (
     <div className="flex items-center gap-2 w-full max-w-xl">
@@ -234,7 +235,15 @@ function SeekBarRow({ duration, seek }: { duration: number, seek: (time: number)
         max={duration}
         step={0.1}
         value={currentTime}
-        onChange={seek}
+        onChange={(val) => {
+          // While dragging: lock out onTimeUpdate and show optimistic position
+          setSeeking(true);
+          setCurrentTime(val);
+        }}
+        onChangeCommit={(val) => {
+          // On release: fire the real seek (seek() manages isSeeking internally)
+          seek(val);
+        }}
         disabled={!currentTrack}
         formatTooltip={formatDuration}
       />

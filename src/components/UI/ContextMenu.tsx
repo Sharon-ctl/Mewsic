@@ -108,7 +108,13 @@ export function ContextMenu() {
       if (trackEl) {
         const trackId = trackEl.getAttribute("data-track-id");
         const context = trackEl.getAttribute("data-context") as "library" | "playlist";
-        const track = tracks.find(t => t.id === trackId);
+        let track = tracks.find(t => t.id === trackId);
+        if (!track && activePlaylistId) {
+          const activePl = playlists.find(p => p.id === activePlaylistId);
+          if (activePl && activePl.tracks) {
+            track = activePl.tracks.find(t => t.id === trackId);
+          }
+        }
         setContextTrack(track || null);
         setContextType(context);
       } else {
@@ -322,12 +328,14 @@ export function ContextMenu() {
               />
             )}
 
-            <ContextMenuItem
-              icon={<Trash2 size={16} />}
-              label="Delete from Disk"
-              onClick={() => { setDeleteTrack(contextTrack); setVisible(false); }}
-              danger
-            />
+            {!contextTrack.isVirtual && (
+              <ContextMenuItem
+                icon={<Trash2 size={16} />}
+                label="Delete from Disk"
+                onClick={() => { setDeleteTrack(contextTrack); setVisible(false); }}
+                danger
+              />
+            )}
             <Divider />
           </>
         ) : contextType === "playlist-item" && contextPlaylistId ? (

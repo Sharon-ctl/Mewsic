@@ -183,8 +183,18 @@ function runMewsifyPlugin() {
 
       const ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M17.9 10.9C14.7 9 9.35 8.8 6.3 9.75c-.5.15-1-.15-1.15-.6c-.15-.5.15-1 .6-1.15c3.55-1.05 9.4-.85 13.1 1.35c.45.25.6.85.35 1.3c-.25.35-.85.5-1.3.25m-.1 2.8c-.25.35-.7.5-1.05.25c-2.7-1.65-6.8-2.15-9.95-1.15c-.4.1-.85-.1-.95-.5s.1-.85.5-.95c3.65-1.1 8.15-.55 11.25 1.35c.3.15.45.65.2 1m-1.2 2.75c-.2.3-.55.4-.85.2c-2.35-1.45-5.3-1.75-8.8-.95c-.35.1-.65-.15-.75-.45c-.1-.35.15-.65.45-.75c3.8-.85 7.1-.5 9.7 1.1c.35.15.4.55.25.85M12 2A10 10 0 0 0 2 12a10 10 0 0 0 10 10a10 10 0 0 0 10-10A10 10 0 0 0 12 2"/></svg>`;
 
+      const CHECK = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#1DB954"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+      const SPIN = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`;
+      const FAIL = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#ef4444"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+
+      // Initialize global state cache if it doesn't exist
+      if (!(window as any).Mewsic._mewsifyState) {
+        (window as any).Mewsic._mewsifyState = { stage: "home" };
+      }
+
       // ── Stage 1: URL input ──────────────────────────────────────────────────
       const renderHome = () => {
+        (window as any).Mewsic._mewsifyState = { stage: "home" };
         container.innerHTML = `
           <div class="flex flex-col items-center justify-center min-h-full p-8 text-center page">
             <div class="w-24 h-24 rounded-full bg-surface-overlay border border-border-subtle flex items-center justify-center text-[#1DB954] mb-6 shadow-2xl shadow-[#1DB954]/20">${ICON}</div>
@@ -233,6 +243,14 @@ function runMewsifyPlugin() {
 
             if (!tracks.length) throw new Error("No playable tracks found.");
             window.Mewsic.ui.dismissNotification(nid);
+            
+            (window as any).Mewsic._mewsifyState = {
+              stage: "preview",
+              url,
+              name,
+              cover,
+              tracks
+            };
             renderPreview(url, name, cover, tracks);
           } catch (e: any) {
             window.Mewsic.ui.dismissNotification(nid);
@@ -323,22 +341,92 @@ function runMewsifyPlugin() {
           });
           window.Mewsic.library.playPlaylist(playlistId);
           window.Mewsic.ui.addNotification(`"${name}" loaded as virtual playlist (${virtualTracks.length} tracks)`, "success");
+
+          // Instantly start background downloading of playlist tracks
+          const musicDir = useStore.getState().musicDir;
+          if (musicDir) {
+            const cacheDir = `${musicDir}/.mewsic_cache`;
+            const uncached = virtualTracks.filter((t: any) => t.filePath.startsWith("ytsearch:"));
+            (async () => {
+              const CONCURRENCY = 3;
+              let index = 0;
+              const worker = async () => {
+                while (index < uncached.length) {
+                  const track = uncached[index++];
+                  try {
+                    const cachedPath = await invoke<string>("download_track", {
+                      musicDir: cacheDir,
+                      title: track.title,
+                      artist: track.artist,
+                      album: track.album || name,
+                      coverArt: track.coverArt || cover,
+                      downloadId: `cache_${track.id}`,
+                    });
+                    
+                    useStore.getState().updateTrack({
+                      ...track,
+                      filePath: cachedPath,
+                    });
+                  } catch (err) {
+                    console.error("Failed to pre-cache track:", err);
+                  }
+                }
+              };
+              await Promise.all(Array.from({ length: Math.min(CONCURRENCY, uncached.length) }, worker));
+            })();
+          }
         } else if (virtualTracks.length === 1) {
           window.Mewsic.player.setQueue(virtualTracks);
           window.Mewsic.player.setIsPlaying(true);
           window.Mewsic.ui.addNotification(`"${name}" loaded as virtual track`, "success");
+
+          // Instantly start background downloading of the single track
+          const musicDir = useStore.getState().musicDir;
+          const track = virtualTracks[0];
+          if (musicDir && track.filePath.startsWith("ytsearch:")) {
+            const cacheDir = `${musicDir}/.mewsic_cache`;
+            (async () => {
+              try {
+                const cachedPath = await invoke<string>("download_track", {
+                  musicDir: cacheDir,
+                  title: track.title,
+                  artist: track.artist,
+                  album: track.album || name,
+                  coverArt: track.coverArt || cover,
+                  downloadId: `cache_${track.id}`,
+                });
+                
+                useStore.getState().updateTrack({
+                  ...track,
+                  filePath: cachedPath,
+                });
+              } catch (err) {
+                console.error("Failed to pre-cache single track:", err);
+              }
+            })();
+          }
         }
 
         window.Mewsic.ui.setView("player");
       };
 
       // ── Stage 3: Downloading with live progress ─────────────────────────────
-      const startDownload = async (url: string, name: string, cover: string, tracks: any[]) => {
-        const playlistId = "mewsify_" + Date.now();
+      const startDownload = async (url: string, name: string, cover: string, tracks: any[], existingPlaylistId?: string) => {
+        const playlistId = existingPlaylistId || "mewsify_" + Date.now();
         const musicDir = window.Mewsic.library.musicDir;
-        const CHECK = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#1DB954"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
-        const SPIN = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`;
-        const FAIL = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="#ef4444"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+
+        // Initialize progress state in cache if not present
+        if (!(window as any).Mewsic._mewsifyState.progress) {
+          (window as any).Mewsic._mewsifyState.progress = {};
+        }
+
+        const stateObj = (window as any).Mewsic._mewsifyState;
+        stateObj.stage = "downloading";
+        stateObj.url = url;
+        stateObj.name = name;
+        stateObj.cover = cover;
+        stateObj.tracks = tracks;
+        stateObj.playlistId = playlistId;
 
         container.innerHTML = `
           <div class="flex flex-col min-h-full p-6 page">
@@ -350,21 +438,54 @@ function runMewsifyPlugin() {
               <div id="mfy-bar" class="h-full bg-[#1DB954] transition-all duration-300 rounded-full" style="width:0%"></div>
             </div>
             <div class="flex-1 overflow-y-auto space-y-0.5">
-              ${tracks.map((t, i) => `
+              ${tracks.map((t, i) => {
+                const prog = stateObj.progress[i];
+                let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg>`;
+                if (prog) {
+                  icon = prog.error ? FAIL : prog.file_path ? CHECK : SPIN;
+                }
+                return `
                 <div class="flex items-center gap-3 px-3 py-2 rounded-lg">
                   <div id="mfy-ic-${i}" class="w-4 h-4 flex-shrink-0 text-text-muted">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg>
+                    ${icon}
                   </div>
                   <div class="flex-1 min-w-0"><div class="text-sm font-medium text-text-primary truncate">${t.title}</div><div class="text-xs text-text-muted truncate">${t.subtitle || ""}</div></div>
-                </div>`).join("")}
+                </div>`;
+              }).join("")}
             </div>
           </div>`;
+
+        // Update progress bar and label for initial/restored state
+        const updateUIFromCache = () => {
+          const progressMap = stateObj.progress;
+          const completedCount = Object.values(progressMap).filter((p: any) => p.file_path).length;
+          const currentDownloading = Object.values(progressMap).find((p: any) => !p.file_path && !p.error);
+          
+          const initialPct = Math.round((completedCount / tracks.length) * 100);
+          const bar = document.getElementById("mfy-bar");
+          const lbl = document.getElementById("mfy-lbl");
+          if (bar) bar.style.width = initialPct + "%";
+          if (lbl) {
+            if (currentDownloading) {
+              lbl.textContent = `Downloading: ${(currentDownloading as any).track_title}`;
+            } else if (completedCount > 0) {
+              lbl.textContent = `${completedCount} / ${tracks.length} done`;
+            }
+          }
+        };
+        updateUIFromCache();
 
         const { listen } = await import("@tauri-apps/api/event");
         if (unlistenFn) unlistenFn();
         unlistenFn = await listen("spotify-import-progress", (evt: any) => {
           const p = evt.payload;
           if (p.playlist_id !== playlistId) return;
+
+          // Save to cache
+          if ((window as any).Mewsic._mewsifyState?.playlistId === playlistId) {
+            (window as any).Mewsic._mewsifyState.progress[p.track_index] = p;
+          }
+
           const done = p.file_path ? 1 : 0.5;
           const pct = Math.round(((p.track_index + done) / p.track_total) * 100);
           const bar = document.getElementById("mfy-bar");
@@ -375,61 +496,74 @@ function runMewsifyPlugin() {
           if (ic) ic.innerHTML = p.error ? FAIL : p.file_path ? CHECK : SPIN;
         });
 
-        try {
-          const result: any = await invoke("import_spotify_playlist", { url, musicDir, playlistId });
-          if (unlistenFn) { unlistenFn(); unlistenFn = null; }
+        if (!existingPlaylistId) {
+          try {
+            const result: any = await invoke("import_spotify_playlist", { url, musicDir, playlistId });
+            if (unlistenFn) { unlistenFn(); unlistenFn = null; }
 
-          const savedTracks: any[] = [];
-          for (const t of (result.tracks || [])) {
-            const track = {
-              id: "mewsify_" + (t.spotifyUri || t.filePath).replace(/[^a-z0-9]/gi, "_"),
-              title: t.title, artist: t.artist, album: t.album, albumArtist: t.artist,
-              genre: "Spotify", duration: t.duration, filePath: t.filePath,
-              fileName: t.filePath.split("/").pop() || t.title,
-              fileSize: 0, format: "mp3", provider: "spotify",
-              isVirtual: false, coverArt: t.coverArt, dateAdded: Date.now(),
-              sourceId: t.spotifyUri,
-            };
-            // Use addTracks (not addVirtualTrack) so isVirtual stays false
-            window.Mewsic.library.addTracks([track]);
-            savedTracks.push(track);
-          }
-
-          if (savedTracks.length > 1) {
-            window.Mewsic.library.addPlaylist({
-              id: playlistId, name: result.playlistName || name, filePath: "",
-              trackIds: savedTracks.map((t: any) => t.id), createdAt: Date.now(), coverArt: result.coverArt || cover,
-            });
-          }
-
-          const bar = document.getElementById("mfy-bar");
-          const lbl = document.getElementById("mfy-lbl");
-          if (bar) bar.style.width = "100%";
-          if (lbl) lbl.textContent = `Done! ${savedTracks.length} tracks saved.`;
-
-          if (savedTracks.length > 1) {
-            window.Mewsic.ui.addNotification(`"${result.playlistName}" imported — ${savedTracks.length} tracks!`, "success");
-          } else if (savedTracks.length === 1) {
-            window.Mewsic.ui.addNotification(`"${savedTracks[0].title}" imported successfully!`, "success");
-          }
-
-          setTimeout(() => {
-            if (savedTracks.length > 1) {
-              window.Mewsic.library.playPlaylist(playlistId);
-              window.Mewsic.ui.setView("player");
-            } else if (savedTracks.length === 1) {
-              window.Mewsic.player.setQueue(savedTracks);
-              window.Mewsic.player.setIsPlaying(true);
-              window.Mewsic.ui.setView("player");
+            const savedTracks: any[] = [];
+            for (const t of (result.tracks || [])) {
+              const track = {
+                id: "mewsify_" + (t.spotifyUri || t.filePath).replace(/[^a-z0-9]/gi, "_"),
+                title: t.title, artist: t.artist, album: t.album, albumArtist: t.artist,
+                genre: "Spotify", duration: t.duration, filePath: t.filePath,
+                fileName: t.filePath.split("/").pop() || t.title,
+                fileSize: 0, format: "mp3", provider: "spotify",
+                isVirtual: false, coverArt: t.coverArt, dateAdded: Date.now(),
+                sourceId: t.spotifyUri,
+              };
+              window.Mewsic.library.addTracks([track]);
+              savedTracks.push(track);
             }
-          }, 1500);
-        } catch (e: any) {
-          if (unlistenFn) { unlistenFn(); unlistenFn = null; }
-          window.Mewsic.ui.addNotification("Import failed: " + (e.message || e), "error");
+
+            if (savedTracks.length > 1) {
+              window.Mewsic.library.addPlaylist({
+                id: playlistId, name: result.playlistName || name, filePath: "",
+                trackIds: savedTracks.map((t: any) => t.id), createdAt: Date.now(), coverArt: result.coverArt || cover,
+              });
+            }
+
+            const bar = document.getElementById("mfy-bar");
+            const lbl = document.getElementById("mfy-lbl");
+            if (bar) bar.style.width = "100%";
+            if (lbl) lbl.textContent = `Done! ${savedTracks.length} tracks saved.`;
+
+            if (savedTracks.length > 1) {
+              window.Mewsic.ui.addNotification(`"${result.playlistName}" imported — ${savedTracks.length} tracks!`, "success");
+            } else if (savedTracks.length === 1) {
+              window.Mewsic.ui.addNotification(`"${savedTracks[0].title}" imported successfully!`, "success");
+            }
+
+            // Clear state cache
+            (window as any).Mewsic._mewsifyState = { stage: "home" };
+
+            setTimeout(() => {
+              if (savedTracks.length > 1) {
+                window.Mewsic.library.playPlaylist(playlistId);
+                window.Mewsic.ui.setView("player");
+              } else if (savedTracks.length === 1) {
+                window.Mewsic.player.setQueue(savedTracks);
+                window.Mewsic.player.setIsPlaying(true);
+                window.Mewsic.ui.setView("player");
+              }
+            }, 1500);
+          } catch (e: any) {
+            if (unlistenFn) { unlistenFn(); unlistenFn = null; }
+            window.Mewsic.ui.addNotification("Import failed: " + (e.message || e), "error");
+            (window as any).Mewsic._mewsifyState = { stage: "home" };
+          }
         }
       };
 
-      renderHome();
+      // Restore stage from cache
+      const state = (window as any).Mewsic._mewsifyState;
+      if (state && state.stage === "downloading") {
+        startDownload(state.url, state.name, state.cover, state.tracks, state.playlistId);
+      } else if (state && state.stage === "preview") {
+        renderPreview(state.url, state.name, state.cover, state.tracks);
+      } else {
+        renderHome();
+      }
     },
     cleanup: () => { }
   });

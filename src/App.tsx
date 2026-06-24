@@ -15,7 +15,7 @@ import { PlayerBar } from "./components/Player/PlayerBar";
 import { HomeView } from "./components/Dashboard/HomeView";
 import { LibraryView } from "./components/Library/LibraryView";
 import { PlaylistView } from "./components/Library/PlaylistView";
-import { PlayerView } from "./components/Player/PlayerView";
+import { LyricsView } from "./components/Player/LyricsView";
 import HarbourView from "./components/Harbour/HarbourView";
 import { AudioView } from "./components/Audio/AudioView";
 import { SettingsView } from "./components/Settings/SettingsView";
@@ -47,7 +47,7 @@ function ViewRouter() {
     case "home":     return <HomeView />;
     case "library":  return <LibraryView />;
     case "playlist": return <PlaylistView />;
-    case "player":   return <PlayerView />;
+    case "player":   return <LyricsView />;
     case "harbour":  return <HarbourView />;
     case "audio":    return <AudioView />;
     case "plugins":  return <PluginsView />;
@@ -233,6 +233,59 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const AUDIO_EXTENSIONS = new Set(["mp3", "flac", "wav", "ogg", "m4a", "aac", "opus", "aiff", "aif", "wma"]);
+
+    const unlisten = listen<string>("open-file", async (event) => {
+      const filePath = event.payload;
+      if (!filePath) return;
+
+      const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+      if (ext === "mewsic") {
+        // Plugin install — copy the folder to the plugins dir and prompt a reload
+        try {
+          await invoke("install_plugin_from_path", { path: filePath });
+          addNotification(
+            "Plugin installed. Reload Mewsic to activate it.",
+            "success",
+            0,
+            false,
+            "Plugin Installed"
+          );
+        } catch (e) {
+          addNotification(`Failed to install plugin: ${e}`, "error");
+        }
+        return;
+      }
+
+      if (AUDIO_EXTENSIONS.has(ext)) {
+        const name = filePath.split(/[\\/]/).pop() ?? filePath;
+        const title = name.replace(/\.[^.]+$/, "");
+        const track: any = {
+          id: `file-open-${Date.now()}`,
+          title,
+          artist: "Unknown Artist",
+          album: "Unknown Album",
+          albumArtist: "Unknown Artist",
+          genre: "Unknown",
+          duration: 0,
+          filePath,
+          fileName: title,
+          fileSize: 0,
+          format: "Unknown",
+          dateAdded: Math.floor(Date.now() / 1000),
+          coverArt: "",
+        };
+        useStore.getState().setQueue([track], 0, "file-open");
+        useStore.getState().setIsPlaying(true);
+        useStore.getState().setActiveView("home");
+      }
+    });
+
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  useEffect(() => {
     if (musicDir && playlistsDir) {
       initialize();
     }
@@ -266,8 +319,6 @@ export default function App() {
         volume, setVolume, shortcuts
       } = useStore.getState();
 
-      if (!currentTrack) return;
-
       const matches = (s: { key: string, ctrl: boolean, shift: boolean, alt: boolean }) => {
         const keyMatch = e.key === s.key || (s.key === "Space" && e.code === "Space");
         return keyMatch && e.ctrlKey === s.ctrl && e.shiftKey === s.shift && e.altKey === s.alt;
@@ -287,14 +338,17 @@ export default function App() {
       if (matches(shortcuts.togglePlay)) {
         if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
+        if (!currentTrack) return;
         setIsPlaying(!isPlaying);
       } else if (matches(shortcuts.skipForward)) {
         if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
+        if (!currentTrack) return;
         skipForward();
       } else if (matches(shortcuts.skipBackward)) {
         if (!rateLimitRepeat(e.code)) return;
         e.preventDefault();
+        if (!currentTrack) return;
         skipBackward();
       } else if (matches(shortcuts.playNext)) {
         if (!rateLimitRepeat(e.code)) return;

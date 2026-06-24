@@ -154,23 +154,14 @@ export function PlaylistView() {
     [playlistTracks]
   );
 
-  if (!playlist) {
-    return (
-      <div className="empty-state h-full">
-        <ListMusic size={40} className="text-text-muted" />
-        <p className="text-text-secondary">Playlist not found</p>
-      </div>
-    );
-  }
-
   const handlePlay = () => {
-    if (!playlistTracks.length) return;
+    if (!playlist || !playlistTracks.length) return;
     setQueue(playlistTracks, 0, playlist.id);
     setIsPlaying(true);
   };
 
   const handleShuffle = useCallback(async () => {
-    if (!playlistTracks.length) return;
+    if (!playlist || !playlistTracks.length) return;
     
     const shuffledTracks = shuffleArray([...playlistTracks]);
     const shuffledIds = shuffledTracks.map((t) => t.id);
@@ -185,6 +176,7 @@ export function PlaylistView() {
   }, [playlistTracks, playlist, updatePlaylistData]);
 
   const handleDelete = async () => {
+    if (!playlist) return;
     if (!confirm(`Delete playlist "${playlist.name}"?`)) return;
     const plToDelete = playlist;
     setActiveView("library");
@@ -197,6 +189,7 @@ export function PlaylistView() {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    if (!playlist) return;
     if (over && active.id !== over.id) {
       const oldIndex = playlistTracks.findIndex((t) => t.id === active.id);
       const newIndex = playlistTracks.findIndex((t) => t.id === over.id);
@@ -221,12 +214,13 @@ export function PlaylistView() {
   }, [setAddTrack]);
 
   const handleRemoveFromPlaylist = useCallback(async (t: Track) => {
+    if (!playlist) return;
     if (confirm(`Remove "${t.title}" from this playlist?`)) {
       await removeTrackFromPlaylist(playlist, t.id);
     }
   }, [playlist, removeTrackFromPlaylist]);
 
-  const isVirtualPlaylist = !playlist.filePath;
+  const isVirtualPlaylist = playlist ? !playlist.filePath : false;
   const currentCachePlaylistIdRef = useRef<string | null>(null);
 
   // Background caching for virtual playlists
@@ -250,7 +244,7 @@ export function PlaylistView() {
         const track = uncachedTracks[i++];
         try {
           const cachedPath = await downloadTrack(
-            cacheDir, track.title, track.artist, track.album || playlist.name, track.coverArt || playlist.coverArt || "", `cache_${track.id}`, undefined
+            cacheDir, track.title, track.artist, track.album || playlist!.name, track.coverArt || playlist!.coverArt || "", `cache_${track.id}`, undefined
           );
           
           if (currentCachePlaylistIdRef.current !== activePlaylistId) return;
@@ -272,7 +266,7 @@ export function PlaylistView() {
   }, [isVirtualPlaylist, playlistTracks, musicDir, activePlaylistId]);
 
   const handleSaveVirtual = async () => {
-    if (!musicDir) return;
+    if (!playlist || !musicDir) return;
     const notifId = addNotification(`Saving ${playlistTracks.length} tracks to disk...`, "info", 0, true);
     
     let unlisten: any = null;
@@ -284,8 +278,9 @@ export function PlaylistView() {
         }
       });
 
-      const finalTracks: Track[] = [];
+      const finalTracksToLibrary: Track[] = [];
       const succeededIds = new Set<string>();
+      const trackIdMap = new Map<string, string>();
       
       for (let i = 0; i < playlistTracks.length; i++) {
         const t = playlistTracks[i];
@@ -293,6 +288,20 @@ export function PlaylistView() {
         
         let finalPath = "";
         try {
+          // Check if there is already a scanned track with the same title and artist in the library
+          const existingTrack = useStore.getState().tracks.find(st => 
+            !st.isVirtual && 
+            !st.filePath.startsWith("ytsearch:") &&
+            st.title.toLowerCase().trim() === t.title.toLowerCase().trim() &&
+            st.artist.toLowerCase().trim() === t.artist.toLowerCase().trim()
+          );
+
+          if (existingTrack) {
+            trackIdMap.set(t.id, existingTrack.id);
+            succeededIds.add(t.id);
+            continue;
+          }
+
           if (!t.filePath.startsWith("ytsearch:")) {
             // Already cached! Just copy it from .mewsic_cache to musicDir
             await importFiles([t.filePath], musicDir);
@@ -300,21 +309,23 @@ export function PlaylistView() {
           } else {
             // Not cached yet, download directly to musicDir
             finalPath = await downloadTrack(
-              musicDir, t.title, t.artist, t.album || playlist.name, t.coverArt || playlist.coverArt || "", `virt_dl_${i}`, undefined
+              musicDir, t.title, t.artist, t.album || playlist!.name, t.coverArt || playlist!.coverArt || "", `virt_dl_${i}`, undefined
             );
           }
           
           if (finalPath) {
+            const newTrackId = "mewsify_" + (t.sourceId || finalPath).replace(/[^a-z0-9]/gi, "_");
             const realTrack: Track = {
               ...t,
-              id: "mewsify_" + (t.sourceId || finalPath).replace(/[^a-z0-9]/gi, "_"),
+              id: newTrackId,
               filePath: finalPath,
               fileName: finalPath.split(/[\\/]/).pop() || t.title,
               isVirtual: false,
               provider: "spotify",
               dateAdded: Date.now(),
             };
-            finalTracks.push(realTrack);
+            finalTracksToLibrary.push(realTrack);
+            trackIdMap.set(t.id, newTrackId);
             succeededIds.add(t.id);
           }
         } catch (e) {
@@ -322,9 +333,11 @@ export function PlaylistView() {
         }
       }
 
-      if (finalTracks.length > 0) {
+      if (succeededIds.size > 0) {
         // We use addTracks to insert the real tracks into the library
-        useStore.getState().addTracks(finalTracks);
+        if (finalTracksToLibrary.length > 0) {
+          useStore.getState().addTracks(finalTracksToLibrary);
+        }
         
         // Clean up the old virtual tracks from the library if they succeeded
         for (const t of playlistTracks) {
@@ -333,14 +346,13 @@ export function PlaylistView() {
           }
         }
         
-        const cleanName = playlist.name.replace(" (Virtual)", "");
+        const cleanName = playlist!.name.replace(" (Virtual)", "");
         const newPl = {
-          ...playlist,
+          ...playlist!,
           name: cleanName,
           trackIds: playlistTracks.map(t => {
             if (succeededIds.has(t.id)) {
-              const matchedReal = finalTracks.find(rt => rt.sourceId === t.sourceId || (rt.title === t.title && rt.artist === t.artist));
-              return matchedReal ? matchedReal.id : t.id;
+              return trackIdMap.get(t.id) || t.id;
             }
             return t.id;
           }),
@@ -349,7 +361,7 @@ export function PlaylistView() {
         // Remove the virtual suffix and save to disk
         await rehydratePlaylist(newPl);
         
-        updateNotification(notifId, { message: `Saved ${finalTracks.length} tracks to library!`, type: "success", loading: false });
+        updateNotification(notifId, { message: `Saved playlist to library!`, type: "success", loading: false });
       } else {
         updateNotification(notifId, { message: "Failed to save tracks.", type: "error", loading: false });
       }
@@ -360,6 +372,15 @@ export function PlaylistView() {
       setTimeout(() => removeNotification(notifId), 5000);
     }
   };
+
+  if (!playlist) {
+    return (
+      <div className="empty-state h-full">
+        <ListMusic size={40} className="text-text-muted" />
+        <p className="text-text-secondary">Playlist not found</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">
