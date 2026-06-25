@@ -32,6 +32,14 @@ const ListContent = memo(function ListContent({
   onDelete: (track: Track) => void;
   height: number;
 }) {
+  const trackIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    allTracks.forEach((t, i) => {
+      map.set(t.id, i);
+    });
+    return map;
+  }, [allTracks]);
+
   // react-window v2 uses rowComponent instead of children
   const RowComponent = useCallback(
     (props: { index: number; style: React.CSSProperties; ariaAttributes: any }) => {
@@ -43,7 +51,7 @@ const ListContent = memo(function ListContent({
             key={track.id}
             track={track}
             allTracks={allTracks}
-            trackIndex={allTracks.findIndex(t => t.id === track.id)}
+            trackIndex={trackIndexMap.get(track.id) ?? -1}
             sourceId="library"
             viewMode="list"
             onAddToPlaylist={onAddToPlaylist}
@@ -53,7 +61,7 @@ const ListContent = memo(function ListContent({
         </div>
       );
     },
-    [tracks, onAddToPlaylist, onEditMetadata, onDelete]
+    [tracks, allTracks, trackIndexMap, onAddToPlaylist, onEditMetadata, onDelete]
   );
 
   const VListElement = VList as any;
@@ -97,6 +105,14 @@ const GridContent = memo(function GridContent({
   const rowCount = Math.ceil(tracks.length / columns);
   const rowHeight = 310; // Increased height to prevent clipping
 
+  const trackIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    allTracks.forEach((t, i) => {
+      map.set(t.id, i);
+    });
+    return map;
+  }, [allTracks]);
+
   const RowComponent = useCallback(
     (props: { index: number; style: React.CSSProperties }) => {
       const startIndex = props.index * columns;
@@ -115,7 +131,7 @@ const GridContent = memo(function GridContent({
                 key={track.id}
                 track={track}
                 allTracks={allTracks}
-                trackIndex={allTracks.findIndex(t => t.id === track.id)}
+                trackIndex={trackIndexMap.get(track.id) ?? -1}
                 sourceId="library"
                 viewMode="grid"
                 onAddToPlaylist={onAddToPlaylist}
@@ -127,7 +143,7 @@ const GridContent = memo(function GridContent({
         </div>
       );
     },
-    [tracks, columns, onAddToPlaylist, onEditMetadata, onDelete]
+    [tracks, columns, allTracks, trackIndexMap, onAddToPlaylist, onEditMetadata, onDelete]
   );
 
   const VListElement = VList as any;
@@ -267,7 +283,7 @@ export function LibraryView() {
   }, [displayTracks, sortKey, sortAsc]);
 
   const filtered = useMemo(() => {
-    const q = localSearch.toLowerCase();
+    const q = searchQuery.toLowerCase();
     if (!q) return sortedLibrary;
     return sortedLibrary.filter(
       (t) =>
@@ -275,7 +291,7 @@ export function LibraryView() {
         t.artist.toLowerCase().includes(q) ||
         t.album.toLowerCase().includes(q)
     );
-  }, [sortedLibrary, localSearch]);
+  }, [sortedLibrary, searchQuery]);
 
 
 

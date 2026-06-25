@@ -21,6 +21,8 @@ let currentReverbStrength = 0.5;
 let currentVolume = 1.0;
 let isLowEndMode = false;
 
+let suspendTimeout: ReturnType<typeof setTimeout> | null = null;
+
 try {
   audioInstance = new Audio();
   audioInstance.preload = "auto";
@@ -43,10 +45,22 @@ try {
     if (audioCtx && masterGain) {
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
       masterGain.gain.setTargetAtTime(0.0001, audioCtx.currentTime, 0.02);
+      
+      if (suspendTimeout) clearTimeout(suspendTimeout);
+      suspendTimeout = setTimeout(() => {
+        if (audioCtx && audioInstance.paused && audioCtx.state === "running") {
+          audioCtx.suspend().catch(() => {});
+        }
+      }, 100);
     }
   });
+
   audioInstance.addEventListener("play", () => {
     if (audioCtx && masterGain) {
+      if (suspendTimeout) clearTimeout(suspendTimeout);
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
       masterGain.gain.setTargetAtTime(currentVolume, audioCtx.currentTime, 0.02);
     }
@@ -69,7 +83,7 @@ export const audio = audioInstance;
 
 function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: number): AudioBuffer {
   const sampleRate = ctx.sampleRate;
-  const length = sampleRate * duration;
+  const length = Math.floor(sampleRate * duration);
   const impulse = ctx.createBuffer(2, length, sampleRate);
   for (let ch = 0; ch < 2; ch++) {
     const data = impulse.getChannelData(ch);
@@ -80,11 +94,14 @@ function createImpulseResponse(ctx: BaseAudioContext, duration: number, decay: n
   return impulse;
 }
 
-// cancelScheduledValues is required before setTargetAtTime to avoid
-// "start time before end of previous event" errors on long-running contexts
-function safeSetGain(param: AudioParam, value: number, ctx: AudioContext) {
-  param.cancelScheduledValues(ctx.currentTime);
-  param.setTargetAtTime(value, ctx.currentTime, 0.01);
+function safeSetGain(param: AudioParam, value: number, ctx: AudioContext, immediate = false) {
+  const t = ctx.currentTime;
+  param.cancelScheduledValues(t);
+  if (immediate) {
+    param.setValueAtTime(value, t);
+  } else {
+    param.setTargetAtTime(value, t, 0.01);
+  }
 }
 
 // full sync — only called once during graph init
@@ -98,61 +115,30 @@ function syncEngineState() {
   if (bassFilter) safeSetGain(bassFilter.gain, currentBassBoost, audioCtx);
   if (boostGain) safeSetGain(boostGain.gain, currentVolumeBoost, audioCtx);
   if (masterGain) safeSetGain(masterGain.gain, currentVolume, audioCtx);
-  syncReverb();
-  syncEqConnections();
-}
 
-// targeted update for just the wet/dry path — avoids touching bass/boost/master unnecessarily
-// We also dynamically connect/disconnect the reverbNode to stop convolver processing (FFT is expensive)
-function syncReverb() {
-  if (!audioCtx || !dryGain || !wetGain || !reverbNode || !bassFilter) return;
-  const reverbActive = currentReverbEnabled && !isLowEndMode;
-
-  try {
-    bassFilter.disconnect(reverbNode);
-  } catch (_) {}
-
-  if (reverbActive) {
-    try {
-      bassFilter.connect(reverbNode);
-    } catch (_) {}
-    safeSetGain(dryGain.gain, 0.6, audioCtx);
-    safeSetGain(wetGain.gain, currentReverbStrength, audioCtx);
-  } else {
-    safeSetGain(dryGain.gain, 1.0, audioCtx);
-    safeSetGain(wetGain.gain, 0.0, audioCtx);
-  }
-}
-
-// Bypasses the 10 peaking EQ filters completely when flat (gains = 0) or in low-end mode to save audio thread CPU
-function syncEqConnections() {
-  if (!audioCtx || !source || !bassFilter) return;
-
+  // Sync EQ gains from the store
   const state = useStore.getState();
   const eqGains = state.eqGains || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-  const eqActive = !isLowEndMode && eqGains.some((g) => g !== 0);
-
-  try {
-    source.disconnect();
-  } catch (_) {}
-
-  if (eqActive) {
-    // source -> EQ chain -> bassFilter
-    source.connect(eqFilters[0]);
-    for (let i = 0; i < eqFilters.length - 1; i++) {
-      try {
-        eqFilters[i].disconnect();
-      } catch (_) {}
-      eqFilters[i].connect(eqFilters[i + 1]);
+  eqFilters.forEach((filter, i) => {
+    if (filter) {
+      filter.gain.cancelScheduledValues(audioCtx!.currentTime);
+      filter.gain.setValueAtTime(eqGains[i] ?? 0, audioCtx!.currentTime);
     }
-    try {
-      eqFilters[eqFilters.length - 1].disconnect();
-    } catch (_) {}
-    eqFilters[eqFilters.length - 1].connect(bassFilter);
-  } else {
-    // Bypassed: source -> bassFilter directly
-    source.connect(bassFilter);
-  }
+  });
+
+  syncReverb();
+}
+
+function syncReverb() {
+  if (!audioCtx || !dryGain || !wetGain) return;
+  const reverbActive = currentReverbEnabled;
+  
+  // Transition wet/dry gains smoothly to avoid audio pops/clicks
+  const targetDry = reverbActive ? 0.6 : 1.0;
+  const targetWet = reverbActive ? currentReverbStrength : 0.0;
+
+  safeSetGain(dryGain.gain, targetDry, audioCtx);
+  safeSetGain(wetGain.gain, targetWet, audioCtx);
 }
 
 export function initAudioContext() {
@@ -195,13 +181,27 @@ export function initAudioContext() {
     boostGain = audioCtx.createGain();
     masterGain = audioCtx.createGain();
 
-    // Setup initial connection topologies
+    // Setup initial static connection topology
+    source.connect(eqFilters[0]);
+    for (let i = 0; i < eqFilters.length - 1; i++) {
+      eqFilters[i].connect(eqFilters[i + 1]);
+    }
+    eqFilters[eqFilters.length - 1].connect(bassFilter);
+
     bassFilter.connect(dryGain);
+    bassFilter.connect(reverbNode);
     reverbNode.connect(wetGain);
     dryGain.connect(boostGain);
     wetGain.connect(boostGain);
     boostGain.connect(masterGain);
     masterGain.connect(audioCtx.destination);
+
+    // Resume automatically after device switches (e.g. Bluetooth reconnect)
+    audioCtx.addEventListener("statechange", () => {
+      if (audioCtx?.state === "suspended" || audioCtx?.state === "interrupted") {
+        audioCtx.resume().catch(() => {});
+      }
+    });
 
     syncEngineState();
     if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
@@ -214,7 +214,9 @@ export function initAudioContext() {
 export function setEngineVolume(vol: number) {
   currentVolume = Math.max(0, Math.min(1, vol));
   if (audioCtx && masterGain) {
-    safeSetGain(masterGain.gain, currentVolume, audioCtx);
+    if (!audioInstance.paused) {
+      safeSetGain(masterGain.gain, currentVolume, audioCtx);
+    }
     audioInstance.volume = 1.0;
   } else {
     audioInstance.volume = currentVolume;
@@ -247,17 +249,15 @@ export function setVolumeBoost(multiplier: number) {
 
 export function setEqGain(index: number, gain: number) {
   if (!eqFilters[index] || !audioCtx) return;
-  // wider smoothing in low-end mode to reduce audio thread pressure from rapid EQ drags
   const smoothing = isLowEndMode ? 0.05 : 0.01;
-  eqFilters[index].gain.cancelScheduledValues(audioCtx.currentTime);
-  eqFilters[index].gain.setTargetAtTime(gain, audioCtx.currentTime, smoothing);
-  syncEqConnections();
+  const param = eqFilters[index].gain;
+  param.cancelScheduledValues(audioCtx.currentTime);
+  param.setTargetAtTime(gain, audioCtx.currentTime, smoothing);
 }
 
 export function setLowEndMode(enabled: boolean) {
   isLowEndMode = enabled;
   syncReverb();
-  syncEqConnections();
 }
 
 if (typeof document !== "undefined") {

@@ -121,7 +121,7 @@ export function AudioView() {
           </div>
           <div className="min-w-0">
             <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">Mewsic Audio Engine</h1>
-            <p className="text-xs md:text-sm text-text-muted truncate">v1.06 | Designed for high quality audio.</p>
+            <p className="text-xs md:text-sm text-text-muted truncate">V2 | Designed for high quality audio.</p>
           </div>
         </div>
         <button
