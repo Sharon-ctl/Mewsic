@@ -38,13 +38,18 @@ regex = "1.10"
 tauri-plugin-shell = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-process = "2"
-souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
-raw-window-handle = "0.6"
 tauri-plugin-updater = "2"
+raw-window-handle = "0.6"
 sysinfo = "0.30"
 mimalloc = { version = "0.1", default-features = false }
 tungstenite = "0.28.0"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+souvlaki = { version = "0.8", default-features = false, features = ["use_zbus"] }
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+souvlaki = { version = "0.8", default-features = false }
 
 
 [features]

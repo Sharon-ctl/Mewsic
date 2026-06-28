@@ -14,6 +14,7 @@
     "category": "Music",
     "targets": [
       "msi",
+      "nsis",
       "deb",
       "rpm",
       "dmg",

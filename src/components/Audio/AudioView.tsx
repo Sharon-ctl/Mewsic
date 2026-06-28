@@ -140,7 +140,7 @@ export function AudioView() {
             <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/15 flex items-center gap-4">
               <AlertTriangle size={18} className="text-amber-500 flex-shrink-0" />
               <p className="text-xs text-amber-500/80 font-medium leading-relaxed">
-                <span className="font-bold">Low-End Mode is on.</span> Expensive effects like reverb may cause audio glitches on weak hardware. All controls are still available.
+                <span className="font-bold">Low-End Mode is on.</span> Expensive effects like reverb may cause audio glitches on weak hardware.
               </p>
             </div>
           )}

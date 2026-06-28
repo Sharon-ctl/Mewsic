@@ -69,6 +69,7 @@ jobs:
 
   build-arch:
     needs: release
+    if: ${{ !cancelled() }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -77,8 +78,12 @@ jobs:
       options: --privileged
 
     steps:
-      - name: Install git
-        run: pacman -Sy --noconfirm git
+      - name: Initialize pacman keyring and install git
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Sy --noconfirm git
 
       - uses: actions/checkout@v4
 
