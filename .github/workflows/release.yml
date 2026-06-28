@@ -49,25 +49,6 @@ jobs:
           node-version: 'lts/*'
           cache: 'npm'
 
-      - name: Adjust version for Windows MSI compatibility
-        if: matrix.platform == 'windows-latest'
-        shell: bash
-        run: |
-          node -e '
-            const fs = require("fs");
-            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-            const version = pkg.version;
-            const match = version.match(/^(\d+\.\d+\.\d+)-([a-zA-Z.-]+)?(\d+)?$/);
-            if (match) {
-              const base = match[1];
-              const num = match[3] || "0";
-              pkg.version = base + "-" + num;
-              fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2), "utf8");
-              console.log("Adjusted Windows version for MSI compatibility: " + version + " -> " + pkg.version);
-            }
-          '
-          node sync-version.js
-
       - name: Install frontend dependencies
         run: npm install
 
