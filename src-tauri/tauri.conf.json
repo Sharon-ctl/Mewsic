@@ -139,7 +139,7 @@
         "minWidth": 360,
         "minHeight": 500,
         "decorations": false,
-        "transparent": false,
+        "transparent": true,
         "devtools": true
       }
     ],

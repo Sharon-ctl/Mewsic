@@ -9,7 +9,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { relaunch, exit } from "@tauri-apps/plugin-process";
 import { Sidebar } from "./components/Sidebar/Sidebar";
 import { PlayerBar } from "./components/Player/PlayerBar";
 import { HomeView } from "./components/Dashboard/HomeView";
@@ -62,8 +62,8 @@ export default function App() {
     activeView, accentColor, customAccentColor, theme, musicDir, playlistsDir, coversDir,
     setMusicDir, setPlaylistsDir, setCoversDir, guiScale, showAbout,
     editTrack, addTrack, deleteTrackRequest, setEditTrack, setAddTrack,
-    setDeleteTrack, removeTrack, addNotification, customTitlebar,
-    setFullscreen, isFullscreen, lowEndMode,
+    setDeleteTrack, removeTrack, addNotification, roundedCorners, customTitlebar,
+    setFullscreen, isFullscreen, lowEndMode, shortcuts,
     showImportPlaylist, setShowImportPlaylist,
     showCreatePlaylist, setShowCreatePlaylist,
     showCyberdeck, setShowCyberdeck, setShowAbout,
@@ -89,6 +89,7 @@ export default function App() {
     setDeleteTrack: s.setDeleteTrack,
     removeTrack: s.removeTrack,
     addNotification: s.addNotification,
+    roundedCorners: s.roundedCorners,
     customTitlebar: s.customTitlebar,
     setFullscreen: s.setFullscreen,
     isFullscreen: s.isFullscreen,
@@ -375,6 +376,10 @@ export default function App() {
         if (e.repeat) return;
         e.preventDefault();
         setShowCyberdeck(!showCyberdeck);
+      } else if ((e.ctrlKey || e.metaKey) && e.code === "KeyQ") {
+        if (e.repeat) return;
+        e.preventDefault();
+        exit(0);
       } else if (e.ctrlKey && e.shiftKey && e.code === "KeyR") {
         if (e.repeat) return;
         e.preventDefault();
@@ -427,7 +432,7 @@ export default function App() {
 
   return (
     <div
-      className="flex flex-col"
+      className={`flex flex-col ${roundedCorners && !isFullscreen ? "rounded-xl overflow-hidden" : ""}`}
       style={{
         height: "100vh",
         background: "var(--surface-base)",

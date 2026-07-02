@@ -113,4 +113,7 @@ export interface AudioPreset {
   bassBoost: number;
   volumeBoost: number;
   eqGains: number[];
+  panX: number;
+  panY: number;
+  panAuto?: boolean;
 }

@@ -6,7 +6,7 @@
 }
 
 /* Low-End Mode: kill GPU-heavy compositing while keeping functional snappiness */
-:root[data-lowend="true"] * {
+:root[data-lowend="true"] *:not(.force-anim):not(.animate-spin) {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   animation-duration: 0s !important;
@@ -194,13 +194,13 @@ html { height: 100%; font-size: 15px; }
 body {
   height: 100%;
   font-family: 'DM Sans', sans-serif;
-  background: var(--surface-base);
+  background: transparent;
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
   user-select: none;
-  transition: background 0.3s ease, color 0.3s ease;
+  transition: color 0.3s ease;
 }
 
 #root { height: 100%; display: flex; flex-direction: column; }
@@ -278,6 +278,41 @@ input[type="range"]::-webkit-slider-thumb:hover {
   -webkit-appearance: slider-vertical; /* WebKit */
   width: 20px;
   background: transparent;
+}
+
+/* Custom EQ Fader (Rotated) */
+.eq-fader {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: ns-resize;
+}
+.eq-fader::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05);
+}
+.eq-fader::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;  /* Since it's rotated -90deg, width is the visual height */
+  height: 24px; /* Since it's rotated -90deg, height is the visual width */
+  border-radius: 4px;
+  background: linear-gradient(to bottom, var(--surface-raised), var(--surface-overlay));
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05);
+  margin-top: -10px; /* Center (4 - 24)/2 */
+  position: relative;
+  transition: transform 0.1s;
+}
+.eq-fader::-webkit-slider-thumb:hover {
+  background: linear-gradient(to bottom, var(--surface-raised), var(--surface-base));
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow), 0 2px 5px rgba(0,0,0,0.5);
+}
+.eq-fader:active::-webkit-slider-thumb {
+  transform: scale(0.95);
 }
 
 /* Progress track fill via CSS custom property */

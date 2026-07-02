@@ -37,74 +37,64 @@ export function AboutModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
       onClick={() => setShowAbout(false)}
     >
       <div
-        className="w-full max-w-sm glass rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500"
+        className="w-full max-w-2xl glass rounded-[2rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-500"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-10 flex flex-col items-center text-center">
-          <div className="flex items-center justify-between w-full mb-8 absolute top-6 right-8">
-            <div />
-            <button
-              onClick={() => setShowAbout(false)}
-              className="p-2 rounded-2xl hover:bg-surface-overlay text-text-muted transition-all hover:scale-110 active:scale-90"
-            >
-              <X size={20} />
-            </button>
-          </div>
+        {/* Header */}
+        <div className="flex items-center justify-between px-8 py-6 border-b border-border-subtle">
+          <h2 className="font-display text-xl font-semibold text-text-primary">About Mewsic</h2>
+          <button onClick={() => setShowAbout(false)} className="btn-icon p-2 hover:bg-surface-overlay rounded-xl transition-all">
+            <X size={20} />
+          </button>
+        </div>
 
-          <div
-            className="w-20 h-20 rounded-[30px] bg-accent flex items-center justify-center mb-6 shadow-accent"
-            style={{ boxShadow: "0 0 40px var(--accent-glow)" }}
-          >
-            <Music2 size={40} color="#000" strokeWidth={2.5} />
-          </div>
+        {/* Content */}
+        <div className="p-8">
+          <div className="flex flex-col p-8 rounded-2xl bg-surface-overlay border border-border-subtle gap-8 w-full text-left">
+            <div className="flex justify-between items-center gap-4">
+              <div className="flex items-center gap-6">
+                <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 shadow-sm flex items-center justify-center flex-shrink-0">
+                  <Music2 size={32} className="text-accent" />
+                </div>
+                <div className="flex flex-col">
+                  <p className="font-display font-black text-3xl text-text-primary tracking-tight">Mewsic <span className="text-accent text-lg ml-1">v{appVersion}</span></p>
+                  <p className="text-xs text-text-muted mt-1 uppercase tracking-widest font-bold">Crafted with love by xeoniii.dev</p>
+                </div>
+              </div>
+            </div>
 
-          <h3 className="text-3xl font-display font-black text-text-primary mb-2 tracking-tighter">
-            Mew<span className="text-accent">sic</span>
-          </h3>
-          <p className="text-xs font-bold text-accent uppercase tracking-[0.2em] mb-6 opacity-80">
-            Version {appVersion}
-          </p>
-
-          <div className="space-y-4 text-text-secondary leading-relaxed text-sm">
-            <p>
-              A premium, open-source music player designed for audiophiles who crave speed and aesthetics.
+            <p className="text-sm text-text-secondary leading-relaxed">
+              A lightning-fast, highly customizable music player built for the modern era. Mewsic combines advanced audio engineering with a stunning interface to bring your local music library to life. Completely open-source, with no telemetry and no ads—just pure audio.
             </p>
 
-            <div className="pt-4 flex flex-col gap-3 items-center">
-              <div className="flex items-center gap-2 text-text-primary font-semibold italic opacity-90">
-                <span>Crafted with love by xeoniii.dev</span>
-              </div>
-
-              <div className="flex items-center gap-4 pt-2">
+            <div className="flex justify-between items-end border-t border-border-subtle pt-5 mt-1">
+              <div className="flex gap-2">
                 <button
                   onClick={() => handleOpenLink("https://xeoniii.github.io")}
-                  className="p-2 rounded-xl bg-surface-overlay hover:bg-accent-muted hover:text-accent transition-all"
+                  className="p-2 rounded-xl bg-surface-raised border border-border-subtle hover:border-accent/50 hover:text-accent transition-all text-text-muted flex items-center justify-center"
                   title="Website"
                 >
-                  <Globe size={18} />
+                  <Globe size={16} />
                 </button>
                 <button
                   onClick={() => handleOpenLink("https://github.com/xeoniii/Mewsic")}
-                  className="p-2 rounded-xl bg-surface-overlay hover:bg-accent-muted hover:text-accent transition-all"
+                  className="p-2 rounded-xl bg-surface-raised border border-border-subtle hover:border-accent/50 hover:text-accent transition-all text-text-muted flex items-center justify-center"
                   title="GitHub"
                 >
-                  <Github size={18} />
+                  <Github size={16} />
                 </button>
               </div>
-            </div>
-          </div>
 
-          <div className="mt-10 pt-6 border-t border-border-subtle w-full flex flex-col gap-1.5 items-center">
-            <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              Build {getBuildId()} • {getOSName()}
-            </p>
-            <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              12,525 Lines of code!
-            </p>
+              <div className="flex flex-col items-end">
+                <p className="text-[9px] text-text-muted/60 font-mono uppercase tracking-[0.2em]">Build: {getBuildId()}</p>
+                <p className="text-[9px] text-text-muted/60 font-mono uppercase tracking-[0.2em] mt-0.5">{getOSName()}</p>
+                <p className="text-[9px] text-accent/60 font-mono uppercase tracking-[0.2em] mt-0.5">17,262 Lines of code</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

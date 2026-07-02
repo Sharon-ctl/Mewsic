@@ -15,6 +15,7 @@ interface HarbourSearchResult {
   duration: number;
   cover_art: string;
   url: string;
+  preview_url?: string;
 }
 
 export default function HarbourView() {
@@ -26,7 +27,13 @@ export default function HarbourView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
-  const [provider, setProvider] = useState("itunes");
+  const [provider, setProvider] = useState(() => {
+    return localStorage.getItem("mewsic-harbour-provider") || "itunes";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("mewsic-harbour-provider", provider);
+  }, [provider]);
   const [preparing, setPreparing] = useState(true);
   const [showSecret, setShowSecret] = useState(false);
   const { musicDir, addNotification, updateNotification, removeNotification, addPlaylist } = useStore(useShallow((s) => ({
@@ -42,6 +49,35 @@ export default function HarbourView() {
   const [currentDep, setCurrentDep] = useState<"yt-dlp" | "ffmpeg" | null>(null);
 
   const [customProviders, setCustomProviders] = useState<Array<{ id: string; name: string }>>([]);
+
+  const [playingPreviewUrl, setPlayingPreviewUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const togglePreview = (url?: string) => {
+    if (!url) return;
+    if (playingPreviewUrl === url) {
+      audioRef.current?.pause();
+      setPlayingPreviewUrl(null);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      const audio = new Audio(url);
+      audio.volume = 0.5;
+      audio.play();
+      audio.onended = () => setPlayingPreviewUrl(null);
+      audioRef.current = audio;
+      setPlayingPreviewUrl(url);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const updateProviders = () => {
@@ -60,9 +96,10 @@ export default function HarbourView() {
   }, []);
 
   const providers = [
-    { id: "jiosaavn", name: "JioSaavn" },
     { id: "itunes", name: "iTunes" },
+    { id: "jiosaavn", name: "JioSaavn" },
     { id: "youtube", name: "YouTube" },
+    { id: "soundcloud", name: "SoundCloud" },
     ...customProviders
   ];
 
@@ -264,43 +301,41 @@ export default function HarbourView() {
     <div className="flex-1 flex flex-col h-full bg-surface-base text-text-primary overflow-hidden page relative">
       {showSecret && <SecretMenu onClose={() => setShowSecret(false)} />}
       {/* Header */}
-      <header className="p-4 md:p-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 border-b border-border-subtle bg-surface-base/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-accent">
+      <header className="p-4 md:p-6 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 border-b border-border-subtle bg-surface-base/50 backdrop-blur-md sticky top-0 z-10 min-w-0">
+        <div className="flex items-center gap-3 min-w-0 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center text-accent flex-shrink-0 border border-white/5">
             <Globe size={24} />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Harbour</h1>
-            <p className="text-sm text-text-muted">Search global music database</p>
+          <div className="min-w-0 flex-1 pr-4">
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight truncate">Harbour Engine</h1>
+            <p className="text-xs md:text-sm text-text-muted truncate">Global music ingestion and discovery</p>
           </div>
         </div>
 
-        <form onSubmit={handleSearch} className="flex flex-wrap sm:flex-nowrap gap-2 md:gap-3 w-full xl:w-auto items-center">
-          <div className="relative flex-1 group min-w-[200px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent transition-colors" size={18} />
+        <form onSubmit={handleSearch} className="flex gap-2 w-full xl:w-auto items-center min-w-0 flex-1 xl:flex-none justify-end">
+          <div className="relative flex-1 group min-w-0 max-w-md">
+            <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-text-muted group-focus-within:text-accent transition-colors" size={18} />
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search for songs, artists..."
-              className="w-full bg-surface-raised border border-border-subtle rounded-xl py-2.5 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all placeholder:text-text-muted text-text-primary shadow-sm"
+              className="w-full bg-white/5 border border-white/5 rounded-xl h-11 pl-10 sm:pl-12 pr-4 focus:outline-none focus:border-accent/50 transition-all placeholder:text-text-muted text-text-primary hover:bg-white/10 min-w-0 text-sm"
             />
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="flex-1 sm:flex-none">
-              <ProviderSelector provider={provider} setProvider={setProvider} providers={providers} />
-            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <ProviderSelector provider={provider} setProvider={setProvider} providers={providers} />
             
             <button
               type="submit"
               disabled={loading}
-              className="bg-accent hover:bg-accent/80 disabled:opacity-50 text-black font-bold px-6 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-accent/20 active:scale-95 flex-1 sm:flex-none"
+              className="btn-accent px-4 sm:px-6 h-11 shrink-0 shadow-sm flex items-center justify-center"
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : (
                 <>
-                  <Search size={18} />
-                  <span>Search</span>
+                  <Search size={18} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Search</span>
                 </>
               )}
             </button>
@@ -332,18 +367,20 @@ export default function HarbourView() {
             </button>
           </div>
         ) : results.length > 0 ? (
-          <div className="grid grid-cols-1 gap-2 max-w-5xl mx-auto">
+          <div className="flex flex-col gap-2 max-w-5xl mx-auto animate-slide-up">
             {results.map((track) => (
               <div
                 key={track.id}
-                className="group flex items-center gap-4 p-3 rounded-xl bg-surface-raised border border-border-subtle hover:bg-surface-overlay hover:border-accent/30 transition-all"
+                className="group flex items-center gap-4 p-3 rounded-[1.25rem] bg-surface-raised border border-white/5 hover:bg-surface-overlay hover:border-accent/30 transition-colors shadow-sm"
               >
-                <div className="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 bg-surface-base shadow-lg shadow-black/10">
+                <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden flex-shrink-0 bg-surface-base shadow-inner">
                   {track.cover_art ? (
                     <>
                       <img 
                         src={track.cover_art} 
                         alt={track.title} 
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-500"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
@@ -351,40 +388,42 @@ export default function HarbourView() {
                         }}
                       />
                       <div className="fallback-icon hidden w-full h-full flex items-center justify-center text-text-muted">
-                        <Music size={28} />
+                        <Music size={24} />
                       </div>
                     </>
                   ) : (
-                      <Music size={28} />
+                      <div className="w-full h-full flex items-center justify-center text-text-muted">
+                        <Music size={24} />
+                      </div>
                   )}
                   {downloadingIds.has(track.id) && (
-                    <div className="absolute inset-0 bg-surface-base/60 backdrop-blur-sm flex items-center justify-center">
-                      <Loader2 size={28} className="animate-spin text-accent" />
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                      <Loader2 size={24} className="animate-spin text-accent" />
                     </div>
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-lg truncate group-hover:text-accent transition-colors text-text-primary">
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
+                  <h4 className="font-bold text-base sm:text-lg truncate group-hover:text-accent transition-colors text-text-primary">
                     {track.title}
                   </h4>
-                  <p className="text-sm text-text-muted truncate flex items-center gap-2">
+                  <p className="text-xs sm:text-sm text-text-muted truncate flex items-center gap-2 mt-0.5">
                     <span className="font-medium text-text-secondary">{track.artist}</span>
-                    <span className="w-1 h-1 rounded-full bg-border-subtle" />
+                    <span className="w-1 h-1 rounded-full bg-white/10" />
                     <span>{track.album}</span>
-                    {track.duration > 0 && (
-                      <>
-                        <span className="w-1 h-1 rounded-full bg-border-subtle" />
-                        <span>{Math.floor(track.duration / 60)}:{String(Math.floor(track.duration % 60)).padStart(2, '0')}</span>
-                      </>
-                    )}
                   </p>
                 </div>
+                
+                {track.duration > 0 && (
+                  <div className="hidden sm:block text-[10px] font-black uppercase tracking-widest text-text-muted/60 tabular-nums px-3 py-1.5 rounded-lg bg-white/5 border border-white/5">
+                    {Math.floor(track.duration / 60)}:{String(Math.floor(track.duration % 60)).padStart(2, '0')}
+                  </div>
+                )}
 
                 <button
                   onClick={() => downloadTrack(track)}
                   disabled={downloadingIds.has(track.id) && !(track as any).isPlaylist}
-                  className="w-12 h-12 rounded-xl bg-surface-base hover:bg-accent hover:text-black flex items-center justify-center transition-all disabled:opacity-50 text-text-muted"
+                  className="w-12 h-12 rounded-xl bg-black/20 hover:bg-accent hover:text-black flex items-center justify-center transition-all disabled:opacity-50 text-text-muted shadow-inner flex-shrink-0"
                   title={(track as any).isPlaylist ? "Import Playlist" : "Download Track"}
                 >
                   {(track as any).isPlaylist ? (
@@ -393,18 +432,28 @@ export default function HarbourView() {
                     <Download size={20} />
                   )}
                 </button>
+                {track.preview_url && !(track as any).isPlaylist && (
+                  <button
+                    onClick={() => togglePreview(track.preview_url)}
+                    className="w-12 h-12 rounded-xl bg-black/20 hover:bg-accent hover:text-black flex items-center justify-center transition-all text-text-muted shadow-inner flex-shrink-0"
+                    title={playingPreviewUrl === track.preview_url ? "Stop Preview" : "Play Preview"}
+                  >
+                    {playingPreviewUrl === track.preview_url ? (
+                      <div className="w-3 h-3 bg-current" /> // Square for stop
+                    ) : (
+                      <FileAudio size={20} /> // Play icon or FileAudio
+                    )}
+                  </button>
+                )}
               </div>
             ))}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center gap-6 text-text-muted/40">
-            <div className="relative">
-              <div className="absolute inset-0 bg-accent/10 blur-3xl rounded-full" />
-              <Globe size={80} className="relative text-accent/30" />
-            </div>
+          <div className="h-full flex flex-col items-center justify-center gap-4 text-text-muted/30 animate-fade-in">
+            <Globe size={64} className="text-text-muted/20" />
             <div className="text-center">
-              <h3 className="text-2xl font-bold text-text-muted/60 mb-2">Ready to Discover?</h3>
-              <p className="text-text-muted/40 max-w-xs">Enter a song or artist above to search the global music library.</p>
+              <h3 className="text-xl font-bold text-text-muted/50 mb-1">Ready to Discover?</h3>
+              <p className="text-sm">Enter a song, artist, or ID above.</p>
             </div>
           </div>
         )}
@@ -432,20 +481,20 @@ function ProviderSelector({ provider, setProvider, providers }: ProviderSelector
   }, [isOpen]);
 
   return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
+    <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-3 bg-surface-raised border ${isOpen ? 'border-accent ring-2 ring-accent/20' : 'border-border-subtle hover:border-text-muted'} rounded-xl px-4 py-2.5 transition-all text-sm font-medium min-w-[140px] justify-between group shadow-sm`}
+        className={`flex items-center gap-2 sm:gap-3 bg-white/5 border ${isOpen ? 'border-accent ring-1 ring-accent/20' : 'border-white/5 hover:border-white/10'} rounded-xl px-3 sm:px-4 h-11 transition-all text-sm font-medium w-[110px] sm:w-[140px] justify-between group hover:bg-white/10`}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-text-primary">{currentProvider.name}</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-text-primary truncate">{currentProvider.name}</span>
         </div>
-        <ChevronDown size={16} className={`text-text-muted transition-transform duration-300 ${isOpen ? 'rotate-180 text-accent' : ''}`} />
+        <ChevronDown size={16} className={`text-text-muted shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180 text-accent' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 left-0 right-0 bg-surface-overlay border border-border-glass rounded-xl overflow-hidden shadow-2xl z-50 animate-scale-in p-1.5 backdrop-blur-xl">
+        <div className="absolute top-full mt-2 left-0 right-0 bg-surface-overlay border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 animate-scale-in p-1.5">
           {providers.map((p) => (
             <button
               key={p.id}
@@ -533,11 +582,11 @@ function SecretMenu({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="absolute inset-0 z-[100] bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center p-8 animate-fade-in">
-      <div className="w-full max-w-xl bg-surface-raised border border-white/5 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.5)] flex flex-col animate-scale-in">
+    <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-2xl flex flex-col items-center justify-center p-8 animate-fade-in">
+      <div className="w-full max-w-xl glass border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.5)] flex flex-col animate-scale-in">
         <div className="bg-white/5 border-b border-white/5 p-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent shadow-[0_0_15px_rgba(var(--color-accent),0.2)]">
               <Terminal size={22} />
             </div>
             <div>

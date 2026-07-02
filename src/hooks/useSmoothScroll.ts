@@ -21,7 +21,7 @@ export function useSmoothScroll(
     const onWheel = (e: WheelEvent) => {
       // Pass through horizontal swipes and touchpad events
       if (e.deltaX !== 0) return;
-      const isTouchpad = Math.abs(e.deltaY) < 25 && e.deltaMode === 0;
+      const isTouchpad = Math.abs(e.deltaY) < 5 && e.deltaMode === 0;
       if (isTouchpad) return;
 
       e.preventDefault();

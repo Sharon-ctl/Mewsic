@@ -19,6 +19,8 @@ import {
   setReverbStrength,
   setLowEndMode,
   setEqGain,
+  setSpatialPan,
+  setPanAuto,
 } from "../utils/audioEngine";
 
 // how often to push currentTime into the store — 50ms is smooth enough for the progress bar
@@ -49,6 +51,9 @@ export function useAudioPlayer() {
     volumeBoost,
     eqGains,
     lowEndMode,
+    panX,
+    panY,
+    panAuto,
   } = useStore(
     useShallow((s) => ({
       currentTrack: s.currentTrack,
@@ -67,6 +72,9 @@ export function useAudioPlayer() {
       volumeBoost: s.volumeBoost,
       eqGains: s.eqGains,
       lowEndMode: s.lowEndMode,
+      panX: s.panX,
+      panY: s.panY,
+      panAuto: s.panAuto,
     }))
   );
 
@@ -226,7 +234,9 @@ export function useAudioPlayer() {
     setPlaybackSpeed(playbackSpeed);
     setBassBoost(bassBoost);
     setVolumeBoost(volumeBoost);
-  }, [reverbEnabled, reverbStrength, playbackSpeed, bassBoost, volumeBoost, currentTrack?.id]);
+    setSpatialPan(panX, panY);
+    setPanAuto(panAuto);
+  }, [reverbEnabled, reverbStrength, playbackSpeed, bassBoost, volumeBoost, panX, panY, panAuto, currentTrack?.id]);
 
   useEffect(() => { setLowEndMode(lowEndMode); }, [lowEndMode]);
 

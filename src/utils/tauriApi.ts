@@ -16,6 +16,13 @@ export function convertFileSrc(filePath: string): string {
 }
 
 export function getOSName(): "Windows" | "macOS" | "Linux" | "Unknown OS" {
+  try {
+    const mockOs = localStorage.getItem("mewsic-mock-os");
+    if (mockOs === "Windows" || mockOs === "macOS" || mockOs === "Linux") {
+      return mockOs;
+    }
+  } catch (e) { }
+
   if (typeof navigator === "undefined") return "Unknown OS";
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes("win")) return "Windows";
@@ -234,6 +241,7 @@ export interface HarbourSearchResult {
   duration: number;
   coverArt: string;
   url: string;
+  previewUrl?: string;
 }
 
 export async function searchHarbour(query: string, provider: string): Promise<HarbourSearchResult[]> {

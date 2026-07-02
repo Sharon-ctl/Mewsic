@@ -27,31 +27,30 @@ if (fs.existsSync(cargoPath)) {
   }
 }
 
-// 2. Sync updater.json if it exists
+// 2. Sync updater.json — only update version and notes.
+//    URLs are now static (no version in filename) so they never need to change.
 const updaterPath = path.join(__dirname, 'updater.json');
 if (fs.existsSync(updaterPath)) {
   try {
     const updater = JSON.parse(fs.readFileSync(updaterPath, 'utf8'));
+    let changed = false;
+
     if (updater.version !== version) {
-      const oldVersion = updater.version;
       updater.version = version;
-      // Also update URLs and notes if they match pattern
-      const oldVerPattern = new RegExp(oldVersion.replace(/\./g, '\\.'), 'g');
-      
-      if (updater.notes) {
-        updater.notes = updater.notes.replace(oldVerPattern, version);
+      changed = true;
+    }
+
+    // Update notes if it still contains a version string pattern
+    if (updater.notes) {
+      const updatedNotes = updater.notes.replace(/v\d+\.\d+[\.\d-]*/g, `v${version}`);
+      if (updatedNotes !== updater.notes) {
+        updater.notes = updatedNotes;
+        changed = true;
       }
-      
-      if (updater.platforms) {
-        for (const platform of Object.keys(updater.platforms)) {
-          const platObj = updater.platforms[platform];
-          if (platObj && platObj.url) {
-            platObj.url = platObj.url.replace(oldVerPattern, version);
-          }
-        }
-      }
-      
-      fs.writeFileSync(updaterPath, JSON.stringify(updater, null, 2), 'utf8');
+    }
+
+    if (changed) {
+      fs.writeFileSync(updaterPath, JSON.stringify(updater, null, 2) + '\n', 'utf8');
       console.log(`- Synced updater.json version to ${version}`);
     }
   } catch (e) {

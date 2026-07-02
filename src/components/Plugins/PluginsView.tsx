@@ -244,7 +244,7 @@ export function PluginsView() {
               </div>
 
               {/* Tabs */}
-              <div className="flex bg-surface-raised/50 border border-border-subtle/50 p-0.5 rounded-xl">
+              <div className="flex bg-surface-raised/50 border border-white/5 p-0.5 rounded-xl">
                 <button
                   onClick={() => {
                     setActiveTab("builtin");
@@ -291,13 +291,13 @@ export function PluginsView() {
                       onClick={() => setSelectedPluginId(p.id)}
                       className={`w-full p-3 rounded-xl flex gap-3 text-left transition-all ${
                         isSelected
-                          ? "bg-accent/10 border border-accent/30"
+                          ? "bg-accent/10 border border-white/10"
                           : "border border-transparent hover:bg-surface-raised/40"
                       }`}
                     >
                       {/* Icon */}
                       <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 border border-white/10 shadow-sm"
                         style={{ backgroundColor: `${p.accentColor}15` }}
                       >
                         {React.cloneElement(p.icon as React.ReactElement, {
@@ -348,10 +348,9 @@ export function PluginsView() {
                 <div className="p-6 border-b border-border-subtle flex items-start justify-between gap-4 flex-shrink-0">
                   <div className="flex items-center gap-4">
                     <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 border border-white/10 shadow-sm"
                       style={{
-                        backgroundColor: `${selectedPlugin.accentColor}20`,
-                        border: `1px solid ${selectedPlugin.accentColor}30`,
+                        backgroundColor: `${selectedPlugin.accentColor}15`,
                       }}
                     >
                       {React.cloneElement(selectedPlugin.icon as React.ReactElement, {
@@ -531,7 +530,7 @@ export function PluginsView() {
                           {selectedPlugin.tags.map((tag: string, idx: number) => (
                             <span
                               key={idx}
-                              className="text-[9px] font-bold px-2.5 py-0.5 rounded-full bg-surface-raised text-text-secondary border border-border-subtle/50"
+                              className="text-[9px] font-bold px-2.5 py-0.5 rounded-full bg-surface-raised text-text-secondary border border-white/5"
                             >
                               {tag}
                             </span>

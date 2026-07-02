@@ -11,6 +11,7 @@ let dryGain: GainNode | null = null;
 let wetGain: GainNode | null = null;
 let boostGain: GainNode | null = null;
 let masterGain: GainNode | null = null;
+let pannerNode: PannerNode | null = null;
 
 const EQ_FREQUENCIES = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -20,6 +21,11 @@ let currentReverbEnabled = false;
 let currentReverbStrength = 0.5;
 let currentVolume = 1.0;
 let isLowEndMode = false;
+let currentPanX = 0;
+let currentPanY = 0;
+let currentPanAuto = false;
+let autoPanInterval: ReturnType<typeof setInterval> | null = null;
+let autoPanAngle = 0;
 
 let suspendTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -45,22 +51,11 @@ try {
     if (audioCtx && masterGain) {
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
       masterGain.gain.setTargetAtTime(0.0001, audioCtx.currentTime, 0.02);
-      
-      if (suspendTimeout) clearTimeout(suspendTimeout);
-      suspendTimeout = setTimeout(() => {
-        if (audioCtx && audioInstance.paused && audioCtx.state === "running") {
-          audioCtx.suspend().catch(() => {});
-        }
-      }, 100);
     }
   });
 
   audioInstance.addEventListener("play", () => {
     if (audioCtx && masterGain) {
-      if (suspendTimeout) clearTimeout(suspendTimeout);
-      if (audioCtx.state === "suspended") {
-        audioCtx.resume().catch(() => {});
-      }
       masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
       masterGain.gain.setTargetAtTime(currentVolume, audioCtx.currentTime, 0.02);
     }
@@ -69,11 +64,11 @@ try {
   console.error("AudioEngine: failed to create audio element", err);
   audioInstance = {
     play: () => Promise.resolve(),
-    pause: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    setAttribute: () => {},
-    removeAttribute: () => {},
+    pause: () => { },
+    addEventListener: () => { },
+    removeEventListener: () => { },
+    setAttribute: () => { },
+    removeAttribute: () => { },
     playbackRate: 1.0,
     volume: 1.0,
   } as any;
@@ -127,12 +122,14 @@ function syncEngineState() {
   });
 
   syncReverb();
+  setSpatialPan(state.panX, state.panY);
+  setPanAuto(state.panAuto || false);
 }
 
 function syncReverb() {
   if (!audioCtx || !dryGain || !wetGain) return;
   const reverbActive = currentReverbEnabled;
-  
+
   // Transition wet/dry gains smoothly to avoid audio pops/clicks
   const targetDry = reverbActive ? 0.6 : 1.0;
   const targetWet = reverbActive ? currentReverbStrength : 0.0;
@@ -143,7 +140,7 @@ function syncReverb() {
 
 export function initAudioContext() {
   if (audioCtx) {
-    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => { });
     return;
   }
 
@@ -180,6 +177,25 @@ export function initAudioContext() {
 
     boostGain = audioCtx.createGain();
     masterGain = audioCtx.createGain();
+    pannerNode = audioCtx.createPanner();
+    pannerNode.panningModel = 'HRTF';
+    pannerNode.distanceModel = 'inverse';
+
+    const listener = audioCtx.listener;
+    if (listener.positionX) {
+      listener.positionX.value = 0;
+      listener.positionY.value = 0;
+      listener.positionZ.value = 0;
+      listener.forwardX.value = 0;
+      listener.forwardY.value = 0;
+      listener.forwardZ.value = -1;
+      listener.upX.value = 0;
+      listener.upY.value = 1;
+      listener.upZ.value = 0;
+    } else {
+      listener.setPosition(0, 0, 0);
+      listener.setOrientation(0, 0, -1, 0, 1, 0);
+    }
 
     // Setup initial static connection topology
     source.connect(eqFilters[0]);
@@ -194,17 +210,18 @@ export function initAudioContext() {
     dryGain.connect(boostGain);
     wetGain.connect(boostGain);
     boostGain.connect(masterGain);
-    masterGain.connect(audioCtx.destination);
+    masterGain.connect(pannerNode);
+    pannerNode.connect(audioCtx.destination);
 
     // Resume automatically after device switches (e.g. Bluetooth reconnect)
     audioCtx.addEventListener("statechange", () => {
       if (audioCtx?.state === "suspended" || audioCtx?.state === "interrupted") {
-        audioCtx.resume().catch(() => {});
+        audioCtx.resume().catch(() => { });
       }
     });
 
     syncEngineState();
-    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => { });
   } catch (err) {
     console.error("AudioEngine: web audio init failed", err);
     audioCtx = null;
@@ -260,6 +277,69 @@ export function setLowEndMode(enabled: boolean) {
   syncReverb();
 }
 
+export function setSpatialPan(x: number, y: number) {
+  currentPanX = x;
+  currentPanY = y;
+  if (!pannerNode || !audioCtx || currentPanAuto) return;
+
+  const radius = 10;
+  const posX = x * radius;
+  const posY = 0;
+  const posZ = -y * radius;
+
+  if (pannerNode.positionX) {
+    const t = audioCtx.currentTime;
+    pannerNode.positionX.cancelScheduledValues(t);
+    pannerNode.positionX.setTargetAtTime(posX, t, 0.1);
+    pannerNode.positionY.cancelScheduledValues(t);
+    pannerNode.positionY.setTargetAtTime(posY, t, 0.1);
+    pannerNode.positionZ.cancelScheduledValues(t);
+    pannerNode.positionZ.setTargetAtTime(posZ, t, 0.1);
+  } else {
+    pannerNode.setPosition(posX, posY, posZ);
+  }
+}
+
+export function setPanAuto(enabled: boolean) {
+  currentPanAuto = enabled;
+  if (!pannerNode || !audioCtx) return;
+
+  if (enabled) {
+    if (autoPanInterval) clearInterval(autoPanInterval);
+    autoPanAngle = 0;
+    autoPanInterval = setInterval(() => {
+      autoPanAngle += 0.04; // Synchronized orbit speed (7.85s)
+      
+      // Use an elliptical orbit instead of a perfect circle.
+      // Standard HRTF often causes the "Cone of Confusion" on the pure Z axis,
+      // making front/back sound like top/bottom (elevation).
+      // Squashing the Z radius keeps it wider on the ears and reduces the illusion.
+      const radiusX = 4.5;
+      const radiusZ = 2.0; 
+      
+      const posX = Math.cos(autoPanAngle) * radiusX;
+      const posZ = Math.sin(autoPanAngle) * radiusZ;
+
+      if (pannerNode && audioCtx) {
+        const t = audioCtx.currentTime;
+        if (pannerNode.positionX) {
+          pannerNode.positionX.setTargetAtTime(posX, t, 0.05);
+          pannerNode.positionZ.setTargetAtTime(posZ, t, 0.05);
+        } else {
+          pannerNode.setPosition(posX, 0, posZ);
+        }
+      }
+    }, 50); // 20fps is enough with setTargetAtTime smoothing
+  } else {
+    if (autoPanInterval) {
+      clearInterval(autoPanInterval);
+      autoPanInterval = null;
+    }
+    // Restore manual panX/panY
+    setSpatialPan(currentPanX, currentPanY);
+  }
+}
+
 if (typeof document !== "undefined") {
   document.addEventListener(
     "click",
@@ -267,7 +347,7 @@ if (typeof document !== "undefined") {
       if (!useStore.getState().safeAudioMode) {
         initAudioContext();
       } else if (audioCtx && audioCtx.state === "suspended") {
-        audioCtx.resume().catch(() => {});
+        audioCtx.resume().catch(() => { });
       }
     },
     { capture: true }

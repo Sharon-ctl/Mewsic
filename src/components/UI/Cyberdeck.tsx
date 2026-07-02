@@ -8,8 +8,8 @@ import { version } from "../../../package.json";
 import type { Track } from "../../types";
 
 interface LogEntry {
-  type: "info" | "success" | "error" | "input";
-  text: string;
+  type: "info" | "success" | "error" | "input" | "component";
+  text: React.ReactNode;
 }
 export function Cyberdeck({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState("");
@@ -54,7 +54,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
   }, []);
 
-  const addLog = (text: string, type: LogEntry["type"] = "info") => {
+  const addLog = (text: React.ReactNode, type: LogEntry["type"] = "info") => {
     setLogs(prev => [...prev, { type, text }]);
   };
 
@@ -343,13 +343,47 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
           addLog("DISPLAYS SYSTEM TELEMETRY AND APP BRANDING.");
           break;
         }
-        addLog(`      _--_      MEWSIC v${version}`);
-        addLog(`    /      \\    OS: ${getOSName().toUpperCase()}-X64`);
-        addLog("   |  O  O  |   THEME: " + theme.toUpperCase());
-        addLog("    \\  __  /    ACCENT: " + accentColor.toUpperCase());
-        addLog("     --  --     TRACKS: " + tracks.length);
-        addLog("    /      \\    PLAYLISTS: " + playlists.length);
-        addLog("   /        \\   STATUS: " + (isPlaying ? "PLAYING" : "IDLE"));
+        addLog(
+          <div className="flex gap-12 py-4 items-center">
+            <div className="text-accent font-black whitespace-pre leading-[1.1] text-[26px] drop-shadow-[0_0_15px_rgba(var(--accent-rgb),0.5)]">
+{`    ,    ,
+   | \\--/ |
+   ( (0_0)(
+    \\==Y==/
+    /'-"-'>
+  _/ < ; (;
+ / ,_ |_|_\\
+( _,,)\\,,),)
+\\ '.___
+ '-----'`}
+            </div>
+            <div className="flex flex-col justify-center">
+              <p className="text-accent font-black text-sm uppercase tracking-[0.3em] mb-4">Mewsic Cyberdeck</p>
+
+              <div className="flex gap-6 font-mono text-xs">
+                <div className="flex flex-col gap-1.5 text-accent/90 font-medium tracking-widest">
+                  <span>OS</span>
+                  <span>VER</span>
+                  <span>THEME</span>
+                  <span>ACCENT</span>
+                  <span>TRACKS</span>
+                  <span>PLAYLISTS</span>
+                  <span>STATUS</span>
+                </div>
+                <div className="flex flex-col gap-1.5 text-text-secondary tracking-wide">
+                  <span>{getOSName().toUpperCase()}-X64</span>
+                  <span>v{version}</span>
+                  <span>{theme.toUpperCase()}</span>
+                  <span>{accentColor.toUpperCase()}</span>
+                  <span>{tracks.length}</span>
+                  <span>{playlists.length}</span>
+                  <span>{isPlaying ? "PLAYING" : "IDLE"}</span>
+                </div>
+              </div>
+            </div>
+          </div>,
+          "component"
+        );
         break;
 
       case "stats":
@@ -385,7 +419,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         }
 
         const playlistNameArg = args.slice(1).join(" ").trim().toLowerCase();
-        
+
         if (playlistNameArg) {
           const target = playlists.find(p => p.name.toLowerCase() === playlistNameArg || p.id.toLowerCase() === playlistNameArg);
           if (!target) {
@@ -427,6 +461,58 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
         }
         break;
 
+      case "setversion":
+        if (args[1] === "help") {
+          addLog("USAGE: SETVERSION <VERSION>");
+          addLog("MOCKS THE APP VERSION TO TEST UPDATER LOGIC. (E.G. '0.0.1' TO TRIGGER UPDATE)");
+          addLog("TYPE 'SETVERSION CLEAR' TO REMOVE MOCK.");
+          break;
+        }
+        if (!args[1]) {
+          addLog("ERROR: NO VERSION PROVIDED", "error");
+          break;
+        }
+        if (args[1] === "clear") {
+          localStorage.removeItem("mewsic-mock-version");
+          addLog("MOCK VERSION CLEARED.", "success");
+        } else {
+          localStorage.setItem("mewsic-mock-version", args[1]);
+          addLog(`APP VERSION MOCKED TO v${args[1]}`, "success");
+        }
+        addLog("RELOAD APP (CTRL+R) FOR CHANGES TO TAKE EFFECT.", "info");
+        break;
+
+      case "setos":
+        if (args[1] === "help") {
+          addLog("USAGE: SETOS <WINDOWS|MACOS|LINUX>");
+          addLog("MOCKS THE SYSTEM OS TO TEST PLATFORM-SPECIFIC UI.");
+          addLog("TYPE 'SETOS CLEAR' TO REMOVE MOCK.");
+          break;
+        }
+        if (!args[1]) {
+          addLog("ERROR: NO OS PROVIDED", "error");
+          break;
+        }
+
+        const osArg = args[1].toLowerCase();
+        if (osArg === "clear") {
+          localStorage.removeItem("mewsic-mock-os");
+          addLog("MOCK OS CLEARED.", "success");
+        } else if (osArg === "windows") {
+          localStorage.setItem("mewsic-mock-os", "Windows");
+          addLog("OS MOCKED TO WINDOWS.", "success");
+        } else if (osArg === "macos") {
+          localStorage.setItem("mewsic-mock-os", "macOS");
+          addLog("OS MOCKED TO MACOS.", "success");
+        } else if (osArg === "linux") {
+          localStorage.setItem("mewsic-mock-os", "Linux");
+          addLog("OS MOCKED TO LINUX.", "success");
+        } else {
+          addLog("ERROR: INVALID OS. VALID: WINDOWS, MACOS, LINUX.", "error");
+        }
+        addLog("RELOAD APP (CTRL+SHIFT+R) FOR CHANGES TO TAKE EFFECT.", "info");
+        break;
+
       case "exit":
       case "quit":
         onClose();
@@ -437,24 +523,98 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const COMMAND_SUGGESTIONS = [
+    { cmd: "help", desc: "List all available system commands" },
+    { cmd: "mewfetch", desc: "Display app information and stats" },
+    { cmd: "stats", desc: "Show telemetry and system stats" },
+    { cmd: "devmode on", desc: "Unlock experimental features" },
+    { cmd: "devmode off", desc: "Disable experimental features" },
+    { cmd: "demo-mode on", desc: "Enable privacy mode (obfuscate tracks)" },
+    { cmd: "demo-mode off", desc: "Disable privacy mode" },
+    { cmd: "clear", desc: "Reset terminal logs" },
+    { cmd: "refreshplaylist", desc: "Regenerate playlist files" },
+    { cmd: "purge-virtual", desc: "Remove all virtual tracks from library" },
+    { cmd: "exit", desc: "Close the application" },
+    { cmd: "quit", desc: "Close the application" },
+    { cmd: "set theme dark", desc: "Set theme to dark mode" },
+    { cmd: "set theme light", desc: "Set theme to light mode" },
+    { cmd: "set accent mint", desc: "Change accent color to mint" },
+    { cmd: "set accent sapphire", desc: "Change accent color to sapphire" },
+    { cmd: "set accent violet", desc: "Change accent color to violet" },
+    { cmd: "set accent rose", desc: "Change accent color to rose" },
+    { cmd: "set accent amber", desc: "Change accent color to amber" },
+    { cmd: "set accent cyan", desc: "Change accent color to cyan" },
+    { cmd: "set accent emerald", desc: "Change accent color to emerald" },
+    { cmd: "set scale 1.0", desc: "Adjust GUI scale multiplier (0.8 - 1.5)" },
+    { cmd: "set tray on", desc: "Enable system tray icon" },
+    { cmd: "set tray off", desc: "Disable system tray icon" },
+    { cmd: "set discord on", desc: "Enable Discord Rich Presence" },
+    { cmd: "set discord off", desc: "Disable Discord Rich Presence" },
+    { cmd: "set titlebar on", desc: "Enable custom window decorations" },
+    { cmd: "set titlebar off", desc: "Disable custom window decorations" },
+    { cmd: "set lowend on", desc: "Enable low-end mode (disable animations)" },
+    { cmd: "set lowend off", desc: "Disable low-end mode" },
+    { cmd: "set notifs on", desc: "Enable system notifications" },
+    { cmd: "set notifs off", desc: "Disable system notifications" },
+    { cmd: "play", desc: "Resume playback" },
+    { cmd: "pause", desc: "Pause playback" },
+    { cmd: "next", desc: "Skip to next track" },
+    { cmd: "prev", desc: "Return to previous track" },
+    { cmd: "vol ", desc: "Set playback volume (0 - 100)" },
+    { cmd: "mute", desc: "Toggle mute state" },
+    { cmd: "config", desc: "Dump full store JSON to console" },
+    { cmd: "inspect ", desc: "Dump raw track metadata (needs track ID)" },
+    { cmd: "reload", desc: "Force window refresh" },
+    { cmd: "bench", desc: "Run directory scan benchmark" },
+    { cmd: "inject-mock", desc: "Inject 50 mock tracks for UI stress test" },
+    { cmd: "clear cache", desc: "Purge image cache" },
+    { cmd: "setversion ", desc: "Mock the app version for testing update dialogs" },
+    { cmd: "setos ", desc: "Mock the operating system name (windows/macos/linux)" },
+  ];
+
+  const filteredSuggestions = input.trim()
+    ? COMMAND_SUGGESTIONS.filter(s => s.cmd.startsWith(input.toLowerCase())).slice(0, 5)
+    : [];
+
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+
+  useEffect(() => {
+    setSelectedSuggestionIndex(0);
+  }, [input]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (filteredSuggestions.length === 0) return;
+
+    if (e.key === "Tab") {
+      e.preventDefault();
+      setInput(filteredSuggestions[selectedSuggestionIndex].cmd + " ");
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedSuggestionIndex(i => (i > 0 ? i - 1 : filteredSuggestions.length - 1));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedSuggestionIndex(i => (i < filteredSuggestions.length - 1 ? i + 1 : 0));
+    }
+  };
+
   return (
-    <div className={`fixed inset-0 z-[1000] flex flex-col p-8 font-mono animate-fade-in ${theme === 'dark' ? 'bg-black/85 backdrop-blur-2xl' : 'bg-white/40 backdrop-blur-md'}`} onClick={onClose}>
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose}>
       <div
-        className={`w-full max-w-3xl mx-auto flex-1 rounded-2xl flex flex-col shadow-[0_0_80px_rgba(var(--accent-rgb),0.2)] overflow-hidden border-2 ${theme === 'dark' ? 'bg-black' : 'bg-surface'}`}
+        className="w-full max-w-5xl h-[80vh] bg-black/95 backdrop-blur-3xl border-2 rounded-[2rem] overflow-hidden shadow-[0_0_80px_rgba(var(--accent-rgb),0.2)] relative animate-in zoom-in-95 duration-500 flex flex-col font-mono"
         style={{ borderColor: 'var(--accent)' }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Terminal Header */}
+        {/* Header */}
         <div
-          className="flex items-center justify-between px-6 py-4 border-b bg-accent/10 rounded-t-[calc(1rem-2px)]"
-          style={{ borderBottomColor: 'rgba(var(--accent-rgb), 0.6)' }}
+          className="flex items-center justify-between px-8 py-5 border-b bg-accent/10"
+          style={{ borderBottomColor: 'rgba(var(--accent-rgb), 0.4)' }}
         >
           <div className="flex items-center gap-3">
             <Terminal size={16} className="text-accent animate-pulse" />
             <span className="text-[11px] font-black text-accent tracking-[0.4em] uppercase shadow-accent">Mewsic Cyberdeck</span>
           </div>
-          <button onClick={onClose} className="text-accent/60 hover:text-accent transition-all hover:scale-110">
-            <X size={18} />
+          <button onClick={onClose} className="text-accent/60 hover:text-accent transition-all hover:scale-110 p-1">
+            <X size={20} />
           </button>
         </div>
 
@@ -476,6 +636,28 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
+        {/* Suggestions */}
+        {filteredSuggestions.length > 0 && (
+          <div
+            className="border-t flex flex-col gap-0.5 p-2 bg-surface-overlay backdrop-blur-3xl"
+            style={{ borderTopColor: 'rgba(var(--accent-rgb), 0.3)' }}
+          >
+            {filteredSuggestions.map((s, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-4 px-4 py-2 cursor-pointer rounded-lg transition-colors group ${i === selectedSuggestionIndex ? 'bg-accent/20' : 'hover:bg-accent/10'}`}
+                onClick={() => {
+                  setInput(s.cmd + " ");
+                  inputRef.current?.focus();
+                }}
+              >
+                <span className={`font-bold transition-colors ${i === selectedSuggestionIndex ? 'text-white' : 'text-accent group-hover:text-white'}`}>{s.cmd}</span>
+                <span className={`text-xs truncate transition-colors ${i === selectedSuggestionIndex ? 'text-accent' : 'text-text-muted group-hover:text-accent/80'}`}>{s.desc}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Input Area */}
         <form
           onSubmit={handleCommand}
@@ -488,6 +670,7 @@ export function Cyberdeck({ onClose }: { onClose: () => void }) {
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             className={`flex-1 bg-transparent border-none outline-none text-sm font-bold placeholder:opacity-20 ${theme === 'dark' ? 'text-white placeholder:text-white' : 'text-black placeholder:text-black'}`}
             placeholder="ENTER COMMAND..."
             spellCheck={false}

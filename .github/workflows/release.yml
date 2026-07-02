@@ -6,37 +6,20 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  # ─── Windows ───────────────────────────────────────────────────────────────
+  release-windows:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin --bundles app'
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin --bundles app'
-          - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
-            args: '--target x86_64-pc-windows-msvc'
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf lld clang
-
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin, x86_64-apple-darwin' || '' }}
+          targets: x86_64-pc-windows-msvc
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -52,7 +35,63 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build the app
+      - name: Build the app (Windows MSI)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Mewsic v__VERSION__'
+          releaseBody: 'See the assets below to download the latest version of Mewsic.'
+          releaseDraft: true
+          prerelease: false
+          args: '--target x86_64-pc-windows-msvc --bundles msi'
+
+      - name: Rename Windows artifact to static name
+        shell: bash
+        run: |
+          MSI=$(find src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi -name '*.msi' | head -n1)
+          echo "Found MSI: $MSI"
+          cp "$MSI" "Mewsic-Setup.msi"
+
+      - name: Upload static MSI to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: gh release upload "${{ github.ref_name }}" "Mewsic-Setup.msi" --repo "${{ github.repository }}" --clobber
+
+  # ─── macOS (ARM64) ─────────────────────────────────────────────────────────
+  release-macos-arm:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Sync node version and setup cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build the app (macOS ARM64)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -65,10 +104,151 @@ jobs:
           releaseBody: 'See the assets below to download the latest version of Mewsic.'
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          args: '--target aarch64-apple-darwin --bundles dmg,app'
 
-  build-arch:
-    needs: release
+      - name: Rename macOS ARM64 artifacts to static names
+        run: |
+          DMG=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name '*.dmg' | head -n1)
+          APP_TAR=$(find src-tauri/target/aarch64-apple-darwin/release/bundle/macos -name '*.app.tar.gz' | head -n1)
+          echo "Found DMG: $DMG"
+          echo "Found APP tar: $APP_TAR"
+          cp "$DMG"     "Mewsic-arm64.dmg"
+          cp "$APP_TAR" "Mewsic-arm64.app.tar.gz"
+
+      - name: Upload static macOS ARM64 artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" "Mewsic-arm64.dmg" --repo "${{ github.repository }}" --clobber
+          gh release upload "${{ github.ref_name }}" "Mewsic-arm64.app.tar.gz" --repo "${{ github.repository }}" --clobber
+
+  # ─── macOS (x86_64) ────────────────────────────────────────────────────────
+  release-macos-x64:
+    permissions:
+      contents: write
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Sync node version and setup cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build the app (macOS x86_64)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Mewsic v__VERSION__'
+          releaseBody: 'See the assets below to download the latest version of Mewsic.'
+          releaseDraft: true
+          prerelease: false
+          args: '--target x86_64-apple-darwin --bundles dmg,app'
+
+      - name: Rename macOS x86_64 artifacts to static names
+        run: |
+          DMG=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name '*.dmg' | head -n1)
+          APP_TAR=$(find src-tauri/target/x86_64-apple-darwin/release/bundle/macos -name '*.app.tar.gz' | head -n1)
+          echo "Found DMG: $DMG"
+          echo "Found APP tar: $APP_TAR"
+          cp "$DMG"     "Mewsic-x64.dmg"
+          cp "$APP_TAR" "Mewsic-x64.app.tar.gz"
+
+      - name: Upload static macOS x86_64 artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" "Mewsic-x64.dmg" --repo "${{ github.repository }}" --clobber
+          gh release upload "${{ github.ref_name }}" "Mewsic-x64.app.tar.gz" --repo "${{ github.repository }}" --clobber
+
+  # ─── Linux (DEB + RPM) ─────────────────────────────────────────────────────
+  release-linux:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf lld clang
+
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Sync node version and setup cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build the app (DEB + RPM)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Mewsic v__VERSION__'
+          releaseBody: 'See the assets below to download the latest version of Mewsic.'
+          releaseDraft: true
+          prerelease: false
+          args: '--bundles deb,rpm'
+
+      - name: Rename Linux artifacts to static names
+        run: |
+          DEB=$(find src-tauri/target/release/bundle/deb -name '*.deb' | head -n1)
+          RPM=$(find src-tauri/target/release/bundle/rpm -name '*.rpm' | head -n1)
+          echo "Found DEB: $DEB"
+          echo "Found RPM: $RPM"
+          cp "$DEB" "Mewsic-Setup.deb"
+          cp "$RPM" "Mewsic-Setup.rpm"
+
+      - name: Upload static Linux artifacts to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" "Mewsic-Setup.deb" --repo "${{ github.repository }}" --clobber
+          gh release upload "${{ github.ref_name }}" "Mewsic-Setup.rpm" --repo "${{ github.repository }}" --clobber
+
+  # ─── Arch Linux (pkg.tar.zst) ──────────────────────────────────────────────
+  release-arch:
+    needs: release-linux
     if: ${{ !cancelled() }}
     permissions:
       contents: write
@@ -97,16 +277,15 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build app
+      - name: Build app binary (release)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri build -- --bundles deb
+        run: npm run tauri build -- --bundles none
 
       - name: Create pacman package
         run: |
           VERSION=$(node -e "console.log(require('./package.json').version)")
-          PKGFILE="mewsic-${VERSION}-1-x86_64.pkg.tar.zst"
 
           mkdir -p pkg/usr/bin pkg/usr/share/applications pkg/usr/share/pixmaps
 
@@ -121,10 +300,9 @@ jobs:
           printf 'pkgname = mewsic\npkgver = %s-1\npkgdesc = A premium offline music player built with Rust and React\nurl = https://github.com/xeoniii/Mewsic\nbuilddate = %s\npackager = GitHub Actions\nsize = %s\narch = x86_64\nlicense = GPL3\ndepend = webkit2gtk-4.1\ndepend = gtk3\ndepend = libayatana-appindicator\ndepend = librsvg\n' \
             "$VERSION" "$(date +%s)" "$SIZE" > pkg/.PKGINFO
 
-          cd pkg && bsdtar --use-compress-program=zstd -cf "../${PKGFILE}" .PKGINFO usr/
-          echo "PKGFILE=${PKGFILE}" >> $GITHUB_ENV
+          cd pkg && bsdtar --use-compress-program=zstd -cf "../Mewsic-arch.pkg.tar.zst" .PKGINFO usr/
 
-      - name: Upload to release
+      - name: Upload Arch package to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.ref_name }}" "${{ env.PKGFILE }}" --repo "${{ github.repository }}"
+        run: gh release upload "${{ github.ref_name }}" "Mewsic-arch.pkg.tar.zst" --repo "${{ github.repository }}" --clobber

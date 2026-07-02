@@ -42,7 +42,7 @@ interface PlayerSlice {
   skipForward: () => void;
   skipBackward: () => void;
   syncQueue: (tracks: Track[], sourceId: string) => void;
-  
+
   seekRequest: number | null;
   requestSeek: (t: number) => void;
   clearSeekRequest: () => void;
@@ -105,6 +105,7 @@ interface UISlice {
   sharePlaylist: Playlist | null;
   history: { view: ViewId; playlistId: string | null }[];
   historyIndex: number;
+  roundedCorners: boolean;
   customTitlebar: boolean;
   isFullscreen: boolean;
   discordEnabled: boolean;
@@ -123,6 +124,9 @@ interface UISlice {
   bassBoost: number;
   volumeBoost: number;
   eqGains: number[];
+  panX: number;
+  panY: number;
+  panAuto: boolean;
   audioPresets: AudioPreset[];
   activePresetId: string | null;
   renamePresetId: string | null;
@@ -143,6 +147,7 @@ interface UISlice {
   toggleShuffle: () => void;
   setGuiScale: (s: number) => void;
   setTrayEnabled: (t: boolean) => void;
+  setRoundedCorners: (v: boolean) => void;
   setCustomTitlebar: (v: boolean) => void;
   setFullscreen: (v: boolean) => void;
   setDiscordEnabled: (v: boolean) => void;
@@ -178,6 +183,8 @@ interface UISlice {
   updatePresetSettings: (id: string) => void;
   setEqGain: (index: number, gain: number) => void;
   resetEq: () => void;
+  setSpatialPan: (x: number, y: number) => void;
+  setPanAuto: (v: boolean) => void;
   resetAudioEffects: () => void;
   setShortcut: (action: keyof ShortcutMap, key: string, ctrl?: boolean, shift?: boolean, alt?: boolean) => void;
   resetShortcuts: () => void;
@@ -274,7 +281,7 @@ export const useStore = create<Store>()(
           return;
         }
 
-        // If at hte beginning of hte first track, wrap to hte end of hte queue
+        // If at the beginning of hte first track, wrap to the end of the queue
         let prevIndex: number;
         if (queueIndex > 0) {
           prevIndex = queueIndex - 1;
@@ -309,7 +316,7 @@ export const useStore = create<Store>()(
         if (queueSourceId !== sourceId) return;
 
         const newIndex = tracks.findIndex((t) => t.id === currentTrack?.id);
-        
+
         if (shuffleEnabled) {
           set({ originalQueue: tracks });
         } else {
@@ -351,7 +358,7 @@ export const useStore = create<Store>()(
         const existing = get().tracks;
         const ids = new Set(existing.map((t) => t.id));
         const mergedScanned = [...existing, ...incoming.filter((t) => !ids.has(t.id))];
-        
+
         const virtuals = get().virtualTracks || [];
         const virtualIds = new Set(virtuals.map((t) => t.id));
         const filteredMerged = mergedScanned.filter((t) => !virtualIds.has(t.id));
@@ -364,7 +371,7 @@ export const useStore = create<Store>()(
           const newVirtuals = exists
             ? s.virtualTracks.map((t) => (t.id === virtualTrack.id ? virtualTrack : t))
             : [...(s.virtualTracks || []), virtualTrack];
-          
+
           const tracksExists = s.tracks.some((t) => t.id === virtualTrack.id);
           const newTracks = tracksExists
             ? s.tracks.map((t) => (t.id === virtualTrack.id ? virtualTrack : t))
@@ -408,7 +415,7 @@ export const useStore = create<Store>()(
       setDiscordCoverCache: (id, url) => set((s) => ({ discordCoverCache: { ...s.discordCoverCache, [id]: url } })),
       removeTrack: (id) => {
         const { tracks, playlists, currentTrack, queue, originalQueue, queueIndex, virtualTracks } = get();
-        
+
         // Remove from playlists
         const updatedPlaylists = playlists.map(pl => ({
           ...pl,
@@ -519,6 +526,7 @@ export const useStore = create<Store>()(
       sharePlaylist: null,
       history: [{ view: "home", playlistId: null }],
       historyIndex: 0,
+      roundedCorners: true,
       customTitlebar: true,
       isFullscreen: false,
       discordEnabled: true,
@@ -537,6 +545,9 @@ export const useStore = create<Store>()(
       bassBoost: 0,
       volumeBoost: 1.0,
       eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      panX: 0,
+      panY: 0,
+      panAuto: false,
       audioPresets: [
         {
           id: "flat",
@@ -546,13 +557,16 @@ export const useStore = create<Store>()(
           playbackSpeed: 1.0,
           bassBoost: 0,
           volumeBoost: 1.0,
-          eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+          eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          panX: 0,
+          panY: 0,
+          panAuto: false
         }
       ],
       activePresetId: "flat",
       playlistScrollOffsets: {},
       smoothScrollEnabled: true,
-      minecraftIntegrationEnabled: false,
+      minecraftIntegrationEnabled: true,
       mewsifyIntegrationEnabled: false,
 
       setActiveView: (v, skipHistory = false) => {
@@ -591,7 +605,7 @@ export const useStore = create<Store>()(
       toggleShuffle: () => {
         const { shuffleEnabled, queue, queueIndex, originalQueue, currentTrack } = get();
         const nextShuffle = !shuffleEnabled;
-        
+
         if (nextShuffle && queue.length > 0) {
           // Shuffle the part of the queue that hasn't played yet
           const played = queue.slice(0, queueIndex + 1);
@@ -613,6 +627,7 @@ export const useStore = create<Store>()(
       },
       setGuiScale: (s) => set({ guiScale: s }),
       setTrayEnabled: (t) => set({ trayEnabled: t }),
+      setRoundedCorners: (v) => set({ roundedCorners: v }),
       setCustomTitlebar: (v) => set({ customTitlebar: v }),
       setFullscreen: (v) => set({ isFullscreen: v }),
       setDiscordEnabled: (v) => set({ discordEnabled: v }),
@@ -650,7 +665,7 @@ export const useStore = create<Store>()(
           "Reload Required"
         );
       },
-      
+
       shortcuts: {
         togglePlay: { key: "Space", ctrl: false, shift: false, alt: false },
         skipForward: { key: "ArrowRight", ctrl: false, shift: false, alt: false },
@@ -710,7 +725,7 @@ export const useStore = create<Store>()(
       setRenamePresetId: (id) => set({ renamePresetId: id }),
       setDemoMode: (v) => set({ isDemoMode: v }),
       setDevMode: (v) => {
-        invoke("set_dev_mode", { enabled: v }).catch(() => {});
+        invoke("set_dev_mode", { enabled: v }).catch(() => { });
         set({ isDevMode: v });
       },
       setReverbEnabled: (v) => set({ reverbEnabled: v }),
@@ -729,6 +744,9 @@ export const useStore = create<Store>()(
           bassBoost: preset.bassBoost,
           volumeBoost: preset.volumeBoost,
           eqGains: [...preset.eqGains],
+          panX: preset.panX ?? 0,
+          panY: preset.panY ?? 0,
+          panAuto: preset.panAuto ?? false,
         };
       }),
       savePreset: (name) => set((s) => {
@@ -742,6 +760,9 @@ export const useStore = create<Store>()(
           bassBoost: s.bassBoost,
           volumeBoost: s.volumeBoost,
           eqGains: [...s.eqGains],
+          panX: s.panX,
+          panY: s.panY,
+          panAuto: s.panAuto,
         };
         return {
           audioPresets: [...s.audioPresets, newPreset],
@@ -764,6 +785,9 @@ export const useStore = create<Store>()(
           bassBoost: s.bassBoost,
           volumeBoost: s.volumeBoost,
           eqGains: [...s.eqGains],
+          panX: s.panX,
+          panY: s.panY,
+          panAuto: s.panAuto,
         } : p)
       })),
       setEqGain: (index, gain) => set((s) => {
@@ -772,15 +796,20 @@ export const useStore = create<Store>()(
         return { eqGains: next };
       }),
       resetEq: () => set({ eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }),
-      resetAudioEffects: () => set({ 
+      resetAudioEffects: () => set({
         volume: 0.8,
-        reverbEnabled: false, 
-        reverbStrength: 0.5, 
-        playbackSpeed: 1.0, 
-        bassBoost: 0, 
+        reverbEnabled: false,
+        reverbStrength: 0.5,
+        playbackSpeed: 1.0,
+        bassBoost: 0,
         volumeBoost: 1.0,
-        eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        eqGains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        panX: 0,
+        panY: 0,
+        panAuto: false
       }),
+      setSpatialPan: (x, y) => set({ panX: x, panY: y }),
+      setPanAuto: (v) => set({ panAuto: v }),
       goBack: () => {
         const { history, historyIndex, setActiveView, setActivePlaylist } = get();
         if (historyIndex > 0) {
@@ -849,6 +878,7 @@ export const useStore = create<Store>()(
         homeViewMode: s.homeViewMode,
         playlistViewMode: s.playlistViewMode,
         theme: s.theme,
+        roundedCorners: s.roundedCorners,
         customTitlebar: s.customTitlebar,
         discordEnabled: s.discordEnabled,
         systemNotifications: s.systemNotifications,

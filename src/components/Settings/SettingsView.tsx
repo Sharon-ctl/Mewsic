@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Palette, FolderOpen, RefreshCw, Trash2, Check, RotateCcw,
   Info, Music2, Volume2, FolderInput, Sun, Moon, Keyboard, Monitor, Share2, MessageSquare, Bell, Zap, FileUp, FolderPlus, Database, Power,
-  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List, Sliders, Puzzle
+  Inbox, PanelTop, Image as ImageIcon, ArrowUpCircle, DownloadCloud, Wrench, ShieldAlert, Terminal, LayoutGrid, List, Sliders, Puzzle, Crop
 } from "lucide-react";
 import { getVersion } from "@tauri-apps/api/app";
 import { check } from "@tauri-apps/plugin-updater";
@@ -64,6 +64,8 @@ export function SettingsView() {
     setTheme,
     customTitlebar,
     setCustomTitlebar,
+    roundedCorners,
+    setRoundedCorners,
     shortcuts,
     setShortcut,
     resetShortcuts,
@@ -99,6 +101,8 @@ export function SettingsView() {
     setTheme: s.setTheme,
     customTitlebar: s.customTitlebar,
     setCustomTitlebar: s.setCustomTitlebar,
+    roundedCorners: s.roundedCorners,
+    setRoundedCorners: s.setRoundedCorners,
     shortcuts: s.shortcuts,
     setShortcut: s.setShortcut,
     resetShortcuts: s.resetShortcuts,
@@ -148,7 +152,12 @@ export function SettingsView() {
   useSmoothScroll(containerRef);
 
   useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => { });
+    const mock = localStorage.getItem("mewsic-mock-version");
+    if (mock) {
+      setAppVersion(mock);
+    } else {
+      getVersion().then(setAppVersion).catch(() => { });
+    }
   }, []);
 
   const handleCheckForUpdates = () => {
@@ -250,12 +259,12 @@ export function SettingsView() {
                     const hexColor = preset.id === "custom" ? customAccentColor : preset.hex;
                     return (
                       <div key={preset.id} className="flex flex-col items-center gap-2 group relative">
-                        <button 
+                        <button
                           onClick={() => {
                             setAccentColor(preset.id as any);
                             if (preset.id === "custom") setShowColorPicker(true);
-                          }} 
-                          className={`relative w-8 h-8 rounded-full transition-all duration-300 ${isActive ? "scale-110 shadow-lg" : "hover:scale-105"}`} 
+                          }}
+                          className={`relative w-8 h-8 rounded-full transition-all duration-300 ${isActive ? "scale-110 shadow-lg" : "hover:scale-105"}`}
                           style={{ backgroundColor: hexColor, boxShadow: isActive ? `0 0 15px ${hexColor}80` : 'none', border: isActive ? `2px solid white` : '1px solid rgba(255,255,255,0.1)' }}>
                           {isActive && <div className="absolute inset-0 rounded-full border-2 border-black/20" />}
                         </button>
@@ -521,36 +530,20 @@ export function SettingsView() {
                     <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-border-subtle" />
                   </label>
                 </div>
-              </div>
-            </div>
-          </Section>
 
-          {/* Software Updates Section */}
-          <Section icon={<ArrowUpCircle size={16} />} title="Software Updates">
-            <div className="space-y-4 h-full flex flex-col">
-              <div className="p-4 rounded-xl bg-surface-overlay border border-border-subtle flex flex-col gap-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[13px] font-bold text-text-primary">Current Version</p>
-                    <p className="text-[11px] font-mono text-text-muted">v{appVersion}</p>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-overlay border border-border-subtle">
+                  <div className="flex items-center gap-2.5">
+                    <Crop size={14} className={roundedCorners ? "text-accent" : "text-text-muted"} />
+                    <div>
+                      <p className="text-[13px] font-medium text-text-primary leading-none">Rounded Corners</p>
+                      <p className="text-[9px] text-text-muted mt-1">Applies radius to the window borders</p>
+                    </div>
                   </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={roundedCorners} onChange={(e) => setRoundedCorners(e.target.checked)} />
+                    <div className="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent border border-border-subtle" />
+                  </label>
                 </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCheckForUpdates}
-                    className="flex-1 bg-surface-raised border border-border-subtle text-text-primary py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-accent hover:text-accent transition-all flex items-center justify-center gap-2"
-                  >
-                    <RefreshCw size={14} />
-                    Check for Updates
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-auto p-3 rounded-lg bg-accent-muted/10 border border-accent/5">
-                <p className="text-[9px] text-text-muted leading-relaxed italic">
-                  Auto-update checks are performed on startup. You can manually trigger a check here to ensure you have the latest features and security patches.
-                </p>
               </div>
             </div>
           </Section>
@@ -608,12 +601,8 @@ export function SettingsView() {
               </div>
             </div>
           </Section>
-        </div>
 
-        {/* Row 3: Integrations & Library Info */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-
-
+          {/* Library Info */}
           <Section icon={<Info size={16} />} title="Library Info">
             <div className="grid grid-cols-2 gap-4">
               {[
@@ -631,12 +620,69 @@ export function SettingsView() {
           </Section>
         </div>
 
-        {/* Original Footer */}
-        <div className="py-12 text-center">
-          <p className="font-display font-black text-sm text-text-primary tracking-tight">Mewsic <span className="text-accent">v{appVersion}</span></p>
-          <p className="text-[10px] text-text-muted mt-1 uppercase tracking-widest font-bold">Crafted with love for high-quality audio.</p>
-          <p className="text-[10px] text-text-muted mt-0.5 uppercase tracking-widest font-bold">Made by xeoniii.dev</p>
-          <p className="text-[9px] text-text-muted/40 font-mono mt-4 uppercase tracking-[0.2em]">Build: {getBuildId()} • {getOSName()}</p>
+        {/* Row 4: Software Info — full width */}
+        <div className="grid grid-cols-1 gap-5">
+          <Section icon={<ArrowUpCircle size={16} />} title="Software Info" className="lg:col-span-2">
+            <div className="flex flex-col p-5 rounded-xl bg-surface-overlay border border-border-subtle gap-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 shadow-sm flex items-center justify-center flex-shrink-0">
+                    <Music2 size={24} className="text-accent" />
+                  </div>
+                  <div className="flex flex-col">
+                    <p className="font-display font-black text-xl text-text-primary tracking-tight">Mewsic <span className="text-accent text-sm ml-1">v{appVersion}</span></p>
+                    <p className="text-[10px] text-text-muted mt-1 uppercase tracking-widest font-bold">Crafted with love for high-quality audio.</p>
+                  </div>
+                </div>
+                <div className="text-left sm:text-right flex flex-col items-start sm:items-end gap-3">
+                  <div className="flex flex-col sm:items-end">
+                    <p className="text-[9px] text-text-muted/60 font-mono uppercase tracking-[0.2em]">Build: {getBuildId()}</p>
+                    <p className="text-[9px] text-text-muted/60 font-mono uppercase tracking-[0.2em] mt-0.5">{getOSName()}</p>
+                  </div>
+                  <button
+                    onClick={handleCheckForUpdates}
+                    className="bg-surface-raised border border-border-subtle text-text-primary px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-accent hover:text-accent transition-all flex items-center gap-2 shadow-sm"
+                  >
+                    <RefreshCw size={14} />
+                    Check for Updates
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-5 border-t border-border-subtle">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-bold text-text-primary uppercase tracking-widest">What's New in v{appVersion}</span>
+                  <a href="https://xeoniii.github.io/updates" target="_blank" rel="noreferrer" className="text-[9px] text-accent hover:underline uppercase tracking-wider font-bold">View All</a>
+                </div>
+                <ul className="space-y-2.5 text-xs text-text-muted">
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent mt-0.5 font-bold">•</span>
+                    <span>Redesigned UI for Audio, Harbour, and Settings Cards. (Including this one.)</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent mt-0.5 font-bold">•</span>
+                    <span>Added Spatial Audio Support to Audio Engine.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent mt-0.5 font-bold">•</span>
+                    <span>New Harbour Provider, SoundCloud has been added.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent mt-0.5 font-bold">•</span>
+                    <span>Minor UI adjustments to make the overall aesthetic better.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent mt-0.5 font-bold">•</span>
+                    <span>Rounded Corner Support has been added.</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="text-accent mt-0.5 font-bold">•</span>
+                    <span>Added Preview for songs in Habour Search. (depends on the track and provider.)</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </Section>
         </div>
       </div>
 

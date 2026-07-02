@@ -252,6 +252,7 @@ pub struct HarbourSearchResult {
     pub duration: f64,
     pub cover_art: String,
     pub url: String,
+    pub preview_url: Option<String>,
 }
 
 pub struct HarbourState {
@@ -940,7 +941,8 @@ async fn harbour_search(
         "jiosaavn" => search_jiosaavn(app_handle, query).await,
         "itunes" => search_itunes(app_handle, query).await,
         "youtube" => search_youtube_direct(app_handle, query).await,
-        _ => search_jiosaavn(app_handle, query).await, // Default
+        "soundcloud" => search_soundcloud(app_handle, query).await,
+        _ => Err(format!("Provider {} not supported", provider)),
     }
 }
 
@@ -978,6 +980,7 @@ async fn search_jiosaavn(app_handle: tauri::AppHandle, query: String) -> Result<
                 duration: 0.0,
                 cover_art,
                 url: s["url"].as_str().unwrap_or_default().to_string(),
+                preview_url: s["more_info"]["vlink"].as_str().map(|v| v.to_string()),
             });
         }
     }
@@ -1020,6 +1023,7 @@ async fn search_itunes(app_handle: tauri::AppHandle, query: String) -> Result<Ve
                 duration: (t["trackTimeMillis"].as_f64().unwrap_or(0.0) / 1000.0),
                 cover_art,
                 url: t["trackViewUrl"].as_str().unwrap_or_default().to_string(),
+                preview_url: t["previewUrl"].as_str().map(|v| v.to_string()),
             });
         }
     }
@@ -1146,6 +1150,76 @@ async fn search_youtube_direct(app_handle: tauri::AppHandle, query: String) -> R
     youtube_search_fallback(app_handle, query).await
 }
 
+async fn search_soundcloud(app_handle: tauri::AppHandle, query: String) -> Result<Vec<HarbourSearchResult>, String> {
+    use std::process::Command;
+    let search_query = format!("scsearch20:{}", query);
+    let yt_dlp_path = get_yt_dlp_path(&app_handle).await;
+    
+    let mut cmd = if yt_dlp_path.exists() {
+        Command::new(&yt_dlp_path)
+    } else {
+        Command::new("yt-dlp")
+    };
+    
+    cmd.args([
+        "--dump-json",
+        "--flat-playlist",
+        "--no-playlist",
+        "--no-check-certificates",
+        "--geo-bypass",
+        &search_query
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
+
+    let output = cmd.output().map_err(|e| format!("SoundCloud search failed: {}", e))?;
+
+    let body = String::from_utf8_lossy(&output.stdout);
+    let mut results = Vec::new();
+
+    for line in body.lines() {
+        if let Ok(item) = serde_json::from_str::<serde_json::Value>(line) {
+            let title = item["title"]
+                .as_str()
+                .unwrap_or("Unknown Title")
+                .to_string();
+            let uploader = item["uploader"]
+                .as_str()
+                .unwrap_or("Unknown Artist")
+                .to_string();
+
+            let (artist, clean_title) = if title.contains(" - ") {
+                let parts: Vec<&str> = title.splitn(2, " - ").collect();
+                (parts[0].trim().to_string(), parts[1].trim().to_string())
+            } else {
+                (uploader, title)
+            };
+
+            let cover_art = if let Some(thumbs) = item["thumbnails"].as_array() {
+                thumbs.last().and_then(|t| t["url"].as_str()).unwrap_or_default().to_string()
+            } else {
+                String::new()
+            };
+
+            results.push(HarbourSearchResult {
+                id: item["id"].as_str().unwrap_or_default().to_string(),
+                title: clean_title,
+                artist: artist,
+                album: "SoundCloud".to_string(),
+                duration: item["duration"].as_f64().unwrap_or(0.0),
+                cover_art,
+                url: item["url"].as_str().unwrap_or_default().to_string(),
+                preview_url: None,
+            });
+        }
+    }
+    Ok(results)
+}
+
 async fn youtube_search_fallback(app_handle: tauri::AppHandle, query: String) -> Result<Vec<HarbourSearchResult>, String> {
     use std::process::Command;
     let search_query = format!("ytsearch20:{} official audio", query);
@@ -1203,11 +1277,13 @@ async fn youtube_search_fallback(app_handle: tauri::AppHandle, query: String) ->
                 artist: artist,
                 album: "YouTube".to_string(),
                 duration: item["duration"].as_f64().unwrap_or(0.0),
-                cover_art: item["thumbnails"][0]["url"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string(),
+                cover_art: if let Some(thumbs) = item["thumbnails"].as_array() {
+                    thumbs.last().and_then(|t| t["url"].as_str()).unwrap_or_default().to_string()
+                } else {
+                    String::new()
+                },
                 url: item["url"].as_str().unwrap_or_default().to_string(),
+                preview_url: None,
             });
         }
     }
