@@ -1,4 +1,4 @@
-# 🎵 Mewsic
+# Mewsic
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform: Desktop](https://img.shields.io/badge/Platform-Desktop-orange.svg)](#)
 
@@ -11,32 +11,32 @@ Mewsic is a premium, performance-obsessed, offline-first music player for **Desk
 
 ---
 
-## 🚀 Core Features
+## Core Features
 
-### 🎧 High-Performance Audio
+### High-Performance Audio
 *   **Throttled State Engine**: Optimized playback engine that throttles progress updates to 500ms, drastically reducing CPU/RAM churn and state synchronization overhead.
 *   **Native Asset Server**: A multi-threaded Rust server (`tiny_http`) handles all local file serving with **HTTP Range** support for near-instantaneous seeking.
 *   **Smart Cover Caching**: Automatically extracts, resizes (thumbnails), and caches cover art in the system cache directory to ensure buttery-smooth UI performance even with 10k+ tracks.
 
-### 📚 Library & Management
+### Library & Management
 *   **Parallel Scanner**: Leverages `rayon` and `walkdir` to index thousands of tracks in seconds without blocking the UI.
 *   **Universal Metadata Support**: Reads and writes tags for MP3, FLAC, OGG, WAV, AAC, M4A, OPUS, AIFF, and WMA via the high-performance `lofty` crate.
 *   **List Virtualization**: Deeply optimized virtualized library views ensure 60FPS scrolling regardless of library size.
 *   **Flexible Playlists**: Persistent `.json` based playlists with support for importing, exporting, and manual track ordering.
 
-### 🌐 Harbour (Online Integration)
+### Harbour (Online Integration)
 *   **Universal Search**: Search for music across **JioSaavn**, **iTunes**, and **YouTube** simultaneously in a unified interface.
 *   **Integrated Downloader**: Built-in `yt-dlp` and `ffmpeg` management. Download any track from YouTube directly into your library with one click.
 *   **Auto-Tagging**: Downloaded tracks are automatically tagged with high-quality metadata and embedded cover art.
 *   **Lyric Sync**: Real-time synced and plain lyrics fetching from `lrclib.net`.
 
-### 🖥️ Native Integration
+### Native Integration
 *   **Discord Rich Presence**: Displays "Now Playing" status, album art, and live listening timestamps on your Discord profile.
 *   **OS Media Controls**: Full integration with **MPRIS (Linux)** and **SMTC (Windows)** for system-wide media keys and native "Now Playing" widgets.
 *   **Custom System Tray**: Minimize to tray with quick playback controls and window management.
 *   **System Notifications**: Beautiful desktop notifications on every track change.
 
-### 🎨 Premium Aesthetics
+### Premium Aesthetics
 *   **Glassmorphic Design**: A deep charcoal dark theme featuring real-time backdrop blur and elegant glass panels.
 *   **Dynamic Accent Colors**: handcrafted color presets (Sapphire, Orange, Fuchsia, Emerald, Indigo) that update the entire UI instantly via a custom CSS variable engine.
 *   **Custom Context Menus**: Seamlessly integrated, theme-aware context menus for tracks, playlists, and sidebar elements.
@@ -44,7 +44,7 @@ Mewsic is a premium, performance-obsessed, offline-first music player for **Desk
 
 ---
 
-## 🛠️ Project Structure
+## Project Structure
 
 ```
 .
@@ -71,7 +71,7 @@ Mewsic is a premium, performance-obsessed, offline-first music player for **Desk
 
 ---
 
-## 🚦 Getting Started
+## Getting Started
 
 ### Prerequisites
 *   **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
@@ -95,7 +95,7 @@ npm run tauri build
 
 ---
 
-## 📝 License
+## License
 
 GNU General Public License v3.0
 
